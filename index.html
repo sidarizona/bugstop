@@ -1,0 +1,1732 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BUG STOP: AMS Decision Simulator</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-size:14px;height:100vh;overflow:hidden;}
+#topbar{background:#1a2535;color:#fff;padding:7px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;height:54px;}
+.game-title{font-size:17px;font-weight:700;color:#7ecfff;letter-spacing:1px;}
+.game-sub{font-size:12px;color:#f5c842;margin-top:1px;font-weight:700;letter-spacing:1px;}
+#life-wrap{display:flex;flex-direction:column;align-items:stretch;}
+#life-lbl{font-size:10px;color:#ff6b6b;letter-spacing:1px;margin-bottom:3px;font-weight:700;text-align:center;}
+#life-track{width:100%;height:18px;background:#d8e4ec;border:1px solid #b0c4d4;border-radius:8px;overflow:hidden;position:relative;}
+#life-fill{height:100%;width:50%;border-radius:8px;background:linear-gradient(90deg,#ff4444,#ff8c00,#2ec26a);transition:width .5s;}
+#life-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:'Courier New',monospace;color:#1a2535;text-shadow:none;}
+/* Speedometer */
+#speedo-wrap{padding:6px 4px 0;text-align:center;}
+#speedo-wrap svg{width:100%;max-width:240px;}
+#clock-wrap{text-align:right;}
+#clock-lbl{font-size:10px;color:#5cc08a;letter-spacing:1px;margin-bottom:1px;}
+#clock{font-size:18px;font-weight:700;color:#cfe;font-family:'Courier New',monospace;}
+#clock.urgent{color:#ffb020;animation:blink .8s infinite;}
+#date-lbl{font-size:10px;color:#5cc08a;letter-spacing:1px;margin-bottom:1px;}
+#case-date{font-size:14px;font-weight:700;color:#cfe;font-family:'Courier New',monospace;}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+#layout{display:grid;grid-template-columns:minmax(240px,380px) minmax(0,1fr) minmax(240px,380px);height:calc(100vh - 54px);}
+/* Phones: keep all three panels at usable widths, swipe horizontally */
+@media (max-width:760px){
+  body{overflow-x:auto;overflow-y:hidden;}
+  #layout{min-width:920px;grid-template-columns:300px 1fr 300px;}
+}
+
+/* LEFT — drugs panel */
+#pumps-panel{background:#1e2c3a;border-right:2px solid #1a2535;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px;}
+.pumps-hdr{font-size:10px;color:#7ecfff;letter-spacing:2px;text-align:center;padding-bottom:5px;border-bottom:1px solid #3a4a5a;margin-bottom:2px;font-weight:700;}
+.field-lbl{font-size:11px;color:#7ecfff;letter-spacing:1px;font-weight:700;margin-bottom:4px;}
+.drug-search{width:100%;background:#111d2a;border:1px solid #36475a;color:#cce;font-size:13px;padding:5px 7px;border-radius:4px;outline:none;}
+.drug-search:focus{border-color:#5a8aaa;}
+.drug-search::placeholder{color:#4a5a6a;}
+#drug-results{background:#0d1720;border:1px solid #2a3848;border-radius:4px;max-height:160px;overflow-y:auto;display:none;}
+.drug-result-item{padding:5px 8px;cursor:pointer;font-size:13px;color:#bcd;border-bottom:1px solid #1a2535;display:flex;justify-content:space-between;align-items:center;gap:6px;}
+.drug-result-item:last-child{border-bottom:none;}
+.drug-result-item:hover{background:#1e3050;}
+.dri-name{flex:1;}
+.dri-badge{font-size:11px;padding:1px 5px;border-radius:3px;font-weight:700;flex-shrink:0;}
+.dri-green{background:#0d2418;color:#2ec26a;border:1px solid #2a5a3a;}
+.dri-orange{background:#2a1f0a;color:#f0a830;border:1px solid #7a5010;}
+.dri-red{background:#2a0f0f;color:#ff8888;border:1px solid #7a2a2a;}
+#selected-drugs{display:flex;flex-direction:column;gap:3px;min-height:10px;}
+.sel-drug-chip{display:flex;align-items:center;justify-content:space-between;background:#162030;border:1px solid #2a3848;border-radius:4px;padding:4px 8px;font-size:12px;color:#bcd;}
+.sel-drug-chip .chip-name{font-weight:600;flex:1;}
+.sel-drug-chip .chip-tl{font-size:11px;margin-right:6px;}
+.chip-tl-green{color:#2ec26a;} .chip-tl-orange{color:#f0a830;} .chip-tl-red{color:#ff8888;}
+.sel-drug-chip .chip-rm{color:#ff6666;cursor:pointer;font-size:15px;line-height:1;padding:0 2px;}
+.sel-drug-chip .chip-rm:hover{color:#ff3333;}
+.panel-field{background:#111d2a;border:1px solid #36475a;color:#cce;font-size:13px;padding:5px 7px;border-radius:4px;outline:none;width:100%;}
+.panel-field:focus{border-color:#5a8aaa;}
+.panel-field::placeholder{color:#4a5a6a;}
+#pending-drug{margin-top:5px;}
+.pending-chip{background:#0d2030;border:1px solid #4a90cc;border-radius:4px;padding:5px 8px;font-size:13px;color:#7ecfff;font-weight:600;}
+.order-btn{width:100%;background:#0d3a1a;border:1px solid #2a7a3a;color:#2ec26a;border-radius:5px;padding:8px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;margin-top:4px;transition:all .1s;}
+.order-btn:hover:not(:disabled){background:#143a20;border-color:#4aaa5a;}
+.order-btn:active:not(:disabled){transform:scale(.98);}
+.order-btn:disabled{opacity:.3;cursor:default;}
+.ams-contact-btn{background:#1a2a4a;border:1px solid #3a5a9a;color:#7ecfff;border-radius:5px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;transition:all .1s;}
+.ams-contact-btn:hover{background:#223566;border-color:#5a7aba;}
+.ams-contact-btn:active{transform:scale(.97);}
+.mar-entry{background:#101e2a;border:1px solid #1e3248;border-radius:5px;padding:6px 8px;margin-bottom:5px;}
+.mar-drug-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
+.mar-meta{font-size:11px;color:#6a8aa0;line-height:1.6;margin-bottom:4px;}
+.mar-meta span{color:#8aaccc;}
+.disc-btn{width:100%;background:#2a0d0d;border:1px solid #6a2a2a;color:#ff8888;border-radius:3px;padding:3px;cursor:pointer;font-size:11px;font-weight:700;transition:all .1s;}
+.disc-btn:hover{background:#3a1414;border-color:#aa4444;}
+.renew-aim-btn{background:none;border:none;color:#7ecfff;font-size:11px;cursor:pointer;padding:0 2px;vertical-align:middle;opacity:.8;}
+.renew-aim-btn:hover{opacity:1;}
+.mar-aim-btn{width:100%;background:#1a2a4a;border:1px solid #3a5a9a;color:#7ecfff;border-radius:3px;padding:4px;cursor:pointer;font-size:11px;font-weight:700;margin-bottom:4px;transition:all .1s;}
+.mar-aim-btn:hover{background:#223566;border-color:#5a7aba;}
+.mar-edit-btn{margin-left:auto;background:none;border:1px solid #3a5a7a;color:#7ecfff;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:10px;flex-shrink:0;}
+.mar-edit-btn:hover{background:#1a2a3a;}
+.mar-edit-form{margin-top:5px;padding-top:5px;border-top:1px solid #1e3248;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* CENTER — case */
+#case{background:#f5f8fa;border-right:2px solid #c8d2dc;display:flex;flex-direction:column;overflow:hidden;}
+.case-card{margin:10px;background:#fff;border:1px solid #d3dde6;border-radius:7px;padding:11px 13px;}
+.case-card h3{font-size:13px;color:#5a7488;letter-spacing:1px;margin-bottom:7px;text-transform:uppercase;}
+.pt-fields{display:flex;flex-direction:column;gap:5px;}
+.pt-row{display:flex;gap:4px;}
+.pt-field{background:#f0f5f8;border:1px solid #d3dde6;border-radius:4px;padding:3px 7px;flex:1;}
+.pt-lbl{font-size:9px;color:#8a9aaa;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:1px;}
+.pt-val{font-size:13px;color:#1a2535;font-weight:600;white-space:nowrap;}
+.pt-case{background:#fff;border:2px solid #2b8fd6;border-radius:5px;padding:6px 10px;}
+.pt-case .pt-lbl{color:#2b8fd6;}
+.pt-case .pt-val{font-size:13px;font-weight:500;white-space:normal;color:#2a3a4a;line-height:1.5;}
+.feed-hdr{font-size:12px;color:#7a90a4;font-weight:700;letter-spacing:1px;margin:10px 10px 6px;}
+#feed{flex:1;overflow-y:auto;padding:0 10px 10px;}
+.fitem{font-size:13px;color:#3a4a58;line-height:1.5;padding:5px 9px;margin-bottom:5px;border-left:3px solid #9fc1de;background:#fff;border-radius:0 4px 4px 0;}
+.fitem.warn{border-left-color:#e9a020;background:#fff8ec;}
+.fitem.bad{border-left-color:#d8453f;background:#fdeceb;color:#8a2420;}
+.fitem.good{border-left-color:#2ba85f;background:#edfaf1;}
+.fitem .d{color:#7a90a4;font-weight:700;margin-right:5px;}
+
+/* RIGHT — monitor */
+#mon{background:#0b1116;display:flex;flex-direction:column;overflow-y:auto;padding:9px;}
+.mon-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+.mon-hdr{font-size:11px;color:#5cc08a;letter-spacing:2px;font-family:'Courier New',monospace;}
+.tl-badge{font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;border:1px solid;font-family:'Courier New',monospace;}
+.tl-green{color:#2ec26a;border-color:#2ec26a;background:#0d2418;}
+.tl-orange{color:#f0a830;border-color:#f0a830;background:#2a1f0a;}
+.tl-red{color:#ff5448;border-color:#ff5448;background:#2a0f0d;}
+.bar-row{margin-bottom:11px;}
+.bar-lbl{font-size:12px;color:#aebfca;display:flex;justify-content:space-between;margin-bottom:3px;}
+.bar-lbl .v{font-family:'Courier New',monospace;color:#cfe;}
+.bar-track{height:7px;background:#1a242c;border-radius:4px;overflow:hidden;}
+.bar-fill{height:7px;border-radius:4px;transition:width .5s,background .5s;width:0;}
+.param-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:5px;margin-bottom:10px;}
+.param-box{background:#08120c;border:1px solid #1c3a26;border-radius:5px;padding:6px 4px;text-align:center;}
+.param-lbl{font-size:10px;color:#5cc08a;letter-spacing:1px;font-family:'Courier New',monospace;margin-bottom:2px;}
+.param-val{font-size:16px;font-weight:700;font-family:'Courier New',monospace;line-height:1.1;transition:color .5s;}
+.param-unit{font-size:10px;color:#5cc08a;margin-top:1px;}
+.param-ref{font-size:9px;color:#3a5a48;margin-top:2px;}
+
+.active-inf-hdr{font-size:11px;color:#7ecfff;letter-spacing:1px;margin-bottom:5px;font-weight:700;}
+#active-inf-list{margin-bottom:10px;}
+.inf-row{display:flex;align-items:center;gap:6px;background:#101e2a;border:1px solid #1e3248;border-radius:4px;padding:4px 8px;margin-bottom:3px;font-size:12px;}
+.inf-dot{width:7px;height:7px;border-radius:50%;animation:pulse 1.5s infinite;flex-shrink:0;}
+.inf-dot.green{background:#2ec26a;} .inf-dot.orange{background:#f0a830;} .inf-dot.red{background:#ff5448;}
+.inf-name{color:#bcd;font-weight:600;flex:1;}
+.inf-route{color:#6a8aa0;font-size:11px;}
+.inf-empty{font-size:12px;color:#4a5a68;font-style:italic;padding:3px 2px;}
+
+/* Stoplight indicators */
+.sl-row{display:flex;align-items:center;gap:10px;background:#101e2a;border:1px solid #1e3248;border-radius:4px;padding:6px 10px;margin-bottom:5px;}
+.sl-lights{display:flex;flex-direction:column;gap:3px;flex-shrink:0;}
+.sl-red,.sl-green{width:14px;height:14px;border-radius:50%;transition:all .4s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;line-height:1;}
+.sl-red{background:#2a0a0a;border:1px solid #3a1a1a;}
+.sl-red.on{background:#ff3b30;box-shadow:0 0 7px #ff3b30;}
+.sl-red.on::after{content:'✗';color:#fff;}
+.sl-green{background:#0a1a0a;border:1px solid #1a3a1a;}
+.sl-green.on{background:#2ec26a;box-shadow:0 0 7px #2ec26a;}
+.sl-green.on::after{content:'✓';color:#fff;}
+.sl-label{font-size:12px;color:#bcd;line-height:1.3;}
+
+/* Overlays */
+#start,#outcome{display:none;position:fixed;inset:0;background:rgba(6,10,14,.92);align-items:center;justify-content:center;z-index:99;padding:16px;}
+#start.show,#outcome.show{display:flex;}
+
+/* Start screen */
+.sbox{text-align:center;max-width:600px;width:100%;}
+.s-title{font-size:52px;font-weight:900;color:#fff;letter-spacing:4px;line-height:1;text-shadow:0 0 40px rgba(126,207,255,.4);}
+.s-accent{color:#7ecfff;}
+.s-sub{font-size:16px;color:#f5c842;letter-spacing:3px;font-weight:700;margin-bottom:36px;text-transform:uppercase;}
+.case-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:24px;}
+.case-tile{background:#1a2535;border:2px solid #2a3a50;border-radius:12px;padding:22px 16px;cursor:default;transition:all .15s;position:relative;overflow:hidden;}
+.case-tile.active{border-color:#7ecfff;cursor:pointer;}
+.case-tile.active:hover{background:#1e2e44;border-color:#a0d8ff;transform:translateY(-2px);box-shadow:0 8px 28px rgba(126,207,255,.18);}
+.case-tile.active:active{transform:translateY(0);}
+.case-tile.locked{opacity:.45;}
+.tile-icon{font-size:40px;margin-bottom:10px;line-height:1;}
+.tile-name{font-size:16px;font-weight:700;color:#cde;margin-bottom:6px;}
+.tile-tag{font-size:12px;font-weight:700;letter-spacing:1px;padding:2px 9px;border-radius:10px;display:inline-block;}
+.case-tile.active .tile-tag{background:#0d2e18;color:#2ec26a;border:1px solid #2ec26a;}
+.case-tile.locked .tile-tag{background:#1e2535;color:#6a7a88;border:1px solid #3a4a58;}
+.s-disc{font-size:10px;color:#556;font-style:italic;}
+
+/* Outcome box */
+.obox{background:#fff;border-radius:12px;padding:32px 38px;max-width:560px;width:100%;text-align:center;box-shadow:0 20px 60px rgba(0,0,0,.5);max-height:90vh;overflow-y:auto;}
+.obox h1{font-size:24px;color:#1a2535;margin-bottom:6px;}
+.obox h1 .accent{color:#2b8fd6;}
+.obtn{background:#1a2535;color:#7ecfff;border:none;padding:12px 34px;border-radius:6px;cursor:pointer;font-size:17px;font-weight:600;letter-spacing:1px;}
+.obtn:hover{background:#28384a;}
+.test-item{display:flex;align-items:center;justify-content:space-between;background:#fff;border:1px solid #d3dde6;border-radius:5px;padding:5px 9px;margin-bottom:4px;font-size:12px;color:#2a3a4a;}
+.test-item-name{flex:1;font-weight:500;}
+.test-btn{border:none;border-radius:4px;padding:3px 10px;cursor:pointer;font-size:11px;font-weight:700;letter-spacing:.5px;}
+.test-btn.pending{background:#e8eef3;color:#7a90a4;cursor:default;}
+.test-btn.available{background:#0d2e18;color:#2ec26a;border:1px solid #2ec26a;cursor:pointer;}
+.test-btn.available:hover{background:#143a20;}
+::-webkit-scrollbar{width:5px;height:5px;}
+::-webkit-scrollbar-thumb{background:#3a4a5a;border-radius:3px;}
+#case ::-webkit-scrollbar-thumb{background:#c0ccd6;}
+.foot{position:fixed;bottom:0;left:0;right:0;text-align:center;font-size:9px;color:#8a9aaa;padding:2px;background:#1a2535;z-index:5;}
+</style>
+</head>
+<body>
+
+<div id="topbar">
+  <div>
+    <div class="game-title">BUG STOP</div>
+    <div class="game-sub">AMS DECISION SIMULATOR</div>
+  </div>
+  <button id="end-game-btn" onclick="if(!gameOver) endGame()" style="background:#2a0d0d;border:1px solid #6a2a2a;color:#ff8888;border-radius:5px;padding:5px 14px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">⏹ END CASE</button>
+</div>
+
+<div id="layout">
+
+  <!-- LEFT: DRUGS PANEL -->
+  <div id="pumps-panel">
+    <div class="pumps-hdr">ORDER DRUGS</div>
+
+    <div>
+      <div class="field-lbl">Antimicrobial</div>
+      <input class="drug-search" id="drug-search" type="text" placeholder="Type to search…" oninput="onDrugSearch()" autocomplete="off">
+      <div id="drug-results"></div>
+      <div id="pending-drug"></div>
+    </div>
+
+    <div>
+      <div class="field-lbl">Indication</div>
+      <input class="drug-search" id="field-indication" type="text" placeholder="Type to search…" oninput="onIndicationSearch()" autocomplete="off">
+      <div id="indication-results"></div>
+      <div id="pending-indication"></div>
+    </div>
+
+    <div>
+      <div class="field-lbl">Duration</div>
+      <input class="drug-search" id="field-duration" type="text" placeholder="e.g. 5 days" oninput="onDurationSearch()" onfocus="onDurationSearch()" autocomplete="off">
+      <div id="duration-results"></div>
+      <div id="pending-duration"></div>
+    </div>
+
+    <div>
+      <div class="field-lbl">AIM Number</div>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <input class="panel-field" id="field-aim" type="text" placeholder="Auto-filled on contact" oninput="onAimInput()" style="flex:1;">
+        <button class="ams-contact-btn" onclick="contactAMS()">📞 Contact AMS</button>
+      </div>
+    </div>
+
+    <button class="order-btn" id="btn-order" onclick="orderDrug()" disabled>✔ ORDER</button>
+
+    <div style="border-top:1px solid #2a3a4e;margin-top:4px;padding-top:8px;">
+      <div class="pumps-hdr" style="margin-bottom:6px;">ORDER TESTS</div>
+      <div class="field-lbl">Test</div>
+      <input class="drug-search" id="test-search" type="text" placeholder="Type to search…" oninput="onTestSearch()" autocomplete="off">
+      <div id="test-results"></div>
+      <div id="pending-test"></div>
+      <button class="order-btn" id="btn-test" onclick="orderTest()" disabled style="margin-top:6px;">✔ ORDER</button>
+    </div>
+  </div>
+
+  <!-- CENTER: CASE -->
+  <div id="case">
+    <div class="case-card">
+      <h3>The patient</h3>
+      <div class="pt-fields">
+        <div class="pt-row">
+          <div class="pt-field"><div class="pt-lbl">Age</div><div class="pt-val" id="pt-age">72</div></div>
+          <div class="pt-field"><div class="pt-lbl">Sex</div><div class="pt-val" id="pt-sex">Female</div></div>
+          <div class="pt-field"><div class="pt-lbl">Weight</div><div class="pt-val" id="pt-weight">68 kg</div></div>
+          <div class="pt-field"><div class="pt-lbl">Height</div><div class="pt-val" id="pt-height">162 cm</div></div>
+          <div class="pt-field"><div class="pt-lbl">Allergies</div><div class="pt-val" id="pt-allergy" style="display:flex;align-items:center;gap:6px;">Sulfa drugs <button onclick="document.getElementById('allergy-modal').style.display='flex'" style="background:#fef0f0;border:1px solid #e0a0a0;color:#c2362f;border-radius:3px;padding:1px 6px;font-size:10px;font-weight:700;cursor:pointer;line-height:1.4;">Detail</button></div></div>
+        </div>
+      </div>
+    </div>
+    <div id="test-panel" style="display:none;margin:6px 10px 0;">
+      <div class="feed-hdr" style="margin:0 0 4px;">ORDERED TESTS</div>
+      <div id="test-list-display"></div>
+    </div>
+    <div style="padding:6px 10px 4px;">
+      <div id="life-wrap">
+        <div id="life-lbl">❤ LIFE FORCE</div>
+        <div id="life-track"><div id="life-fill"></div><div id="life-pct">50%</div></div>
+      </div>
+    </div>
+    <div class="feed-hdr">CASE FEED</div>
+    <div id="feed"></div>
+  </div>
+
+  <!-- RIGHT: AMS MONITOR -->
+  <div id="mon">
+    <div class="mon-top">
+      <span class="mon-hdr">AMS MONITOR</span>
+      <div id="clock-wrap">
+        <div id="clock-lbl">CASE CLOCK</div>
+        <div id="clock">Day 1 &middot; 00h</div>
+        <div id="date-wrap" style="margin-top:3px;">
+          <div id="date-lbl">DATE (MM-DD)</div>
+          <div id="case-date">01-01</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="param-grid">
+      <div class="param-box">
+        <div class="param-lbl">TEMP</div>
+        <div class="param-val" id="param-temp">38.9</div>
+        <div class="param-unit">&deg;C</div>
+        <div class="param-ref">&lt;37.5</div>
+      </div>
+      <div class="param-box">
+        <div class="param-lbl">BP</div>
+        <div class="param-val" id="param-bp">109/82</div>
+        <div class="param-unit">mmHg</div>
+        <div class="param-ref">&gt;90/60</div>
+      </div>
+      <div class="param-box">
+        <div class="param-lbl">HR</div>
+        <div class="param-val" id="param-hr">118</div>
+        <div class="param-unit">bpm</div>
+        <div class="param-ref">60–100</div>
+      </div>
+      <div class="param-box">
+        <div class="param-lbl">RR</div>
+        <div class="param-val" id="param-rr">24</div>
+        <div class="param-unit">br/min</div>
+        <div class="param-ref">12–20</div>
+      </div>
+      <div class="param-box">
+        <div class="param-lbl">SpO₂</div>
+        <div class="param-val" id="param-spo2">91</div>
+        <div class="param-unit">%</div>
+        <div class="param-ref">&gt;95</div>
+      </div>
+    </div>
+
+    <div class="active-inf-hdr">MAR</div>
+    <div id="active-inf-list"><div class="inf-empty">No active antimicrobials</div></div>
+
+    <div class="active-inf-hdr" style="margin-top:10px;">AMS DASHBOARD</div>
+    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-ind-r"></div><div class="sl-green" id="sl-ind-g"></div></div><div class="sl-label">Indication documented</div></div>
+    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-rev-r"></div><div class="sl-green" id="sl-rev-g"></div></div><div class="sl-label">Duration documented</div></div>
+    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-cult-r"></div><div class="sl-green" id="sl-cult-g"></div></div><div class="sl-label">Cultures before antibiotics</div></div>
+    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-aim-r"></div><div class="sl-green" id="sl-aim-g"></div></div><div class="sl-label">AIM Number documented<span id="aim-countdown" style="display:none;margin-left:6px;font-family:'Courier New',monospace;color:#f0a830;font-size:11px;font-weight:700;"></span></div></div>
+    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-app-r"></div><div class="sl-green" id="sl-app-g"></div></div><div class="sl-label">Appropriate</div></div>
+
+    <div id="speedo-wrap">
+      <svg viewBox="0 0 200 115" xmlns="http://www.w3.org/2000/svg">
+        <!-- Zone backgrounds -->
+        <path d="M 20 100 A 80 80 0 0 1 59 31"   stroke="#3a0f0f" stroke-width="16" fill="none"/>
+        <path d="M 59 31  A 80 80 0 0 1 139 30"  stroke="#3a2a0a" stroke-width="16" fill="none"/>
+        <path d="M 139 30 A 80 80 0 0 1 180 100" stroke="#0a2a15" stroke-width="16" fill="none"/>
+        <!-- Full dark bg arc on top -->
+        <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="#111d2a" stroke-width="6" fill="none"/>
+        <!-- Value arc -->
+        <path id="speedo-arc" d="" stroke="#ff5448" stroke-width="14" fill="none" stroke-linecap="round"/>
+        <!-- Tick marks -->
+        <line x1="20"  y1="100" x2="27"  y2="100" stroke="#4a6a7a" stroke-width="1.5"/>
+        <line x1="100" y1="20"  x2="100" y2="27"  stroke="#4a6a7a" stroke-width="1.5"/>
+        <line x1="180" y1="100" x2="173" y2="100" stroke="#4a6a7a" stroke-width="1.5"/>
+        <!-- Needle -->
+        <line id="speedo-needle" x1="100" y1="100" x2="27" y2="100" stroke="#ff5448" stroke-width="2.5" stroke-linecap="round"/>
+        <!-- Center hub -->
+        <circle cx="100" cy="100" r="6" fill="#1e2c3a" stroke="#7ecfff" stroke-width="1.5"/>
+        <!-- Score text -->
+        <text id="speedo-val" x="100" y="83" text-anchor="middle" font-size="20" font-weight="700" font-family="Courier New,monospace" fill="#ff5448">10%</text>
+        <text x="100" y="93" text-anchor="middle" font-size="6.5" fill="#5cc08a" font-family="Courier New,monospace" letter-spacing="1.5">STEWARDSHIP</text>
+        <!-- Scale labels -->
+        <text x="18"  y="112" text-anchor="middle" font-size="7.5" fill="#4a6a7a" font-family="Courier New,monospace">0</text>
+        <text x="100" y="38"  text-anchor="middle" font-size="7.5" fill="#4a6a7a" font-family="Courier New,monospace">50</text>
+        <text x="182" y="112" text-anchor="middle" font-size="7.5" fill="#4a6a7a" font-family="Courier New,monospace">100</text>
+      </svg>
+    </div>
+  </div>
+</div>
+
+<!-- START -->
+<div id="start" class="show">
+  <div class="sbox">
+    <div class="s-title">BUG <span class="s-accent">STOP</span></div>
+    <div class="s-sub">AMS Decision Simulator</div>
+    <div class="case-grid">
+
+      <div class="case-tile active" onclick="startGame()">
+        <div class="tile-icon">🦠</div>
+        <div class="tile-name">Acute Pyelonephritis</div>
+        <div class="tile-tag">Case available</div>
+      </div>
+
+      <div class="case-tile locked">
+        <div class="tile-icon">🫁</div>
+        <div class="tile-name">Pneumonia</div>
+        <div class="tile-tag">Coming soon</div>
+      </div>
+
+      <div class="case-tile locked">
+        <div class="tile-icon">🩸</div>
+        <div class="tile-name">Febrile Neutropenia</div>
+        <div class="tile-tag">Coming soon</div>
+      </div>
+
+      <div class="case-tile locked">
+        <div class="tile-icon">🌀</div>
+        <div class="tile-name">Intra-abdominal Infection</div>
+        <div class="tile-tag">Coming soon</div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- OUTCOME -->
+<div id="outcome">
+  <div class="obox">
+    <div id="o-grade"></div>
+    <button class="obtn" onclick="restart()">Run case again</button>
+  </div>
+</div>
+
+<!-- ALLERGY DETAIL MODAL -->
+<div id="allergy-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:98;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:10px;padding:24px 28px;max-width:380px;width:92%;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div style="font-size:15px;font-weight:700;color:#c2362f;border-bottom:2px solid #f5dada;padding-bottom:8px;margin-bottom:14px;">⚠️ Allergy Detail</div>
+    <table style="font-size:13px;width:100%;border-collapse:collapse;">
+      <tr style="border-bottom:1px solid #f0e0e0;">
+        <td style="padding:6px 8px;color:#7a90a4;font-weight:700;width:40%;">Allergen</td>
+        <td style="padding:6px 8px;color:#1a2535;font-weight:600;">Sulfa drugs</td>
+      </tr>
+      <tr>
+        <td style="padding:6px 8px;color:#7a90a4;font-weight:700;">Reaction</td>
+        <td style="padding:6px 8px;color:#c2362f;font-weight:700;">Anaphylaxis</td>
+      </tr>
+    </table>
+    <button onclick="document.getElementById('allergy-modal').style.display='none'" style="margin-top:16px;background:#1a2535;color:#7ecfff;border:none;padding:9px 28px;border-radius:5px;cursor:pointer;font-size:14px;font-weight:600;">✕ Close</button>
+  </div>
+</div>
+
+<!-- RESULT MODAL -->
+<div id="result-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:98;align-items:center;justify-content:center;">
+  <div style="background:#fff;border-radius:10px;padding:24px 28px;max-width:540px;width:92%;max-height:82vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.5);">
+    <div id="result-content"></div>
+    <button onclick="closeResult()" style="margin-top:16px;background:#1a2535;color:#7ecfff;border:none;padding:9px 28px;border-radius:5px;cursor:pointer;font-size:14px;font-weight:600;">✕ Close</button>
+  </div>
+</div>
+
+<script>
+// ════════════════════════════════════════════
+// DRUG DATABASE — from abx.xlsx
+// ════════════════════════════════════════════
+const DRUGS = [
+  {name:'Aciclovir',route:'Oral',tl:'Green'},
+  {name:'Aciclovir',route:'IV',tl:'Orange'},
+  {name:'Albendazole',route:'Oral',tl:'Red'},
+  {name:'Amikacin',route:'IV',tl:'Red'},
+  {name:'Amoxicillin',route:'Oral',tl:'Green',penicillin:true},
+  {name:'Amoxicillin-clavulanate',route:'Oral',tl:'Green',penicillin:true},
+  {name:'Amoxicillin-clavulanate',route:'IV',tl:'Orange',penicillin:true},
+  {name:'Amphotericin (liposomal)',route:'IV',tl:'Red'},
+  {name:'Ampicillin',route:'IV',tl:'Green',penicillin:true},
+  {name:'Anidulafungin',route:'IV',tl:'Red'},
+  {name:'Artemether-lumefantrine',route:'Oral',tl:'Red'},
+  {name:'Artesunate',route:'IV',tl:'Red'},
+  {name:'Atovaquone',route:'Oral',tl:'Orange'},
+  {name:'Atovaquone-proguanil',route:'Oral',tl:'Red'},
+  {name:'Azithromycin',route:'Oral',tl:'Orange'},
+  {name:'Azithromycin',route:'IV',tl:'Red'},
+  {name:'Aztreonam',route:'IV',tl:'Orange'},
+  {name:'Benzathine benzylpenicillin',route:'IM',tl:'Green',penicillin:true},
+  {name:'Benzylpenicillin',route:'IV',tl:'Green',penicillin:true},
+  {name:'Cefaclor',route:'Oral',tl:'Green'},
+  {name:'Cefalexin',route:'Oral',tl:'Green'},
+  {name:'Cefazolin',route:'IV',tl:'Green'},
+  {name:'Cefepime',route:'IV',tl:'Orange'},
+  {name:'Cefotaxime',route:'IV',tl:'Orange'},
+  {name:'Ceftaroline',route:'IV',tl:'Red'},
+  {name:'Ceftazidime',route:'IV',tl:'Orange'},
+  {name:'Ceftazidime-avibactam',route:'IV',tl:'Red'},
+  {name:'Ceftolozane-tazobactam',route:'IV',tl:'Red'},
+  {name:'Ceftriaxone',route:'IV',tl:'Orange'},
+  {name:'Cefuroxime',route:'Oral',tl:'Green'},
+  {name:'Cidofovir',route:'IV',tl:'Red'},
+  {name:'Ciprofloxacin',route:'Oral',tl:'Orange'},
+  {name:'Ciprofloxacin',route:'IV',tl:'Orange'},
+  {name:'Clarithromycin',route:'Oral',tl:'Green'},
+  {name:'Clindamycin',route:'Oral',tl:'Orange'},
+  {name:'Clindamycin',route:'IV',tl:'Orange'},
+  {name:'Colistin',route:'IV',tl:'Red'},
+  {name:'Colistin',route:'Nebulised',tl:'Red'},
+  {name:'Dapsone',route:'Oral',tl:'Orange'},
+  {name:'Daptomycin',route:'IV',tl:'Red'},
+  {name:'Doxycycline',route:'Oral',tl:'Green'},
+  {name:'Ertapenem',route:'IV',tl:'Red'},
+  {name:'Erythromycin',route:'Oral',tl:'Green'},
+  {name:'Famciclovir',route:'Oral',tl:'Green'},
+  {name:'Fidaxomicin',route:'Oral',tl:'Red'},
+  {name:'Flucloxacillin',route:'Oral',tl:'Green',penicillin:true},
+  {name:'Flucloxacillin',route:'IV',tl:'Green',penicillin:true},
+  {name:'Fluconazole',route:'Oral',tl:'Orange'},
+  {name:'Fluconazole',route:'IV',tl:'Orange'},
+  {name:'Flucytosine',route:'Oral',tl:'Red'},
+  {name:'Foscarnet',route:'IV',tl:'Red'},
+  {name:'Fosfomycin',route:'Oral',tl:'Orange'},
+  {name:'Ganciclovir',route:'IV',tl:'Red'},
+  {name:'Gentamicin',route:'IV',tl:'Orange'},
+  {name:'Griseofulvin',route:'Oral',tl:'Orange'},
+  {name:'Imipenem-cilastatin',route:'IV',tl:'Red'},
+  {name:'Isavuconazole',route:'Oral',tl:'Red'},
+  {name:'Itraconazole',route:'Oral',tl:'Orange'},
+  {name:'Ivermectin',route:'Oral',tl:'Red'},
+  {name:'Letermovir',route:'Oral',tl:'Red'},
+  {name:'Levofloxacin',route:'Oral',tl:'Orange'},
+  {name:'Linezolid',route:'Oral',tl:'Red'},
+  {name:'Linezolid',route:'IV',tl:'Red'},
+  {name:'Maribavir',route:'Oral',tl:'Red'},
+  {name:'Mebendazole',route:'Oral',tl:'Orange'},
+  {name:'Meropenem',route:'IV',tl:'Red'},
+  {name:'Metronidazole',route:'Oral',tl:'Green'},
+  {name:'Metronidazole',route:'IV',tl:'Orange'},
+  {name:'Micafungin',route:'IV',tl:'Red'},
+  {name:'Minocycline',route:'Oral',tl:'Green'},
+  {name:'Moxifloxacin',route:'Oral',tl:'Orange'},
+  {name:'Moxifloxacin',route:'IV',tl:'Orange'},
+  {name:'Nirmatrelvir-ritonavir',route:'Oral',tl:'Red'},
+  {name:'Nitrofurantoin',route:'Oral',tl:'Green'},
+  {name:'Norfloxacin',route:'Oral',tl:'Orange'},
+  {name:'Nystatin',route:'Oral',tl:'Green'},
+  {name:'Oseltamivir',route:'Oral',tl:'Green'},
+  {name:'Paromomycin',route:'Oral',tl:'Red'},
+  {name:'Pentamidine',route:'Nebulised',tl:'Orange'},
+  {name:'Pentamidine',route:'IV',tl:'Orange'},
+  {name:'Phenoxymethylpenicillin',route:'Oral',tl:'Green',penicillin:true},
+  {name:'Piperacillin-tazobactam',route:'IV',tl:'Orange',penicillin:true},
+  {name:'Posaconazole',route:'Oral',tl:'Red'},
+  {name:'Posaconazole',route:'IV',tl:'Red'},
+  {name:'Praziquantel',route:'Oral',tl:'Red'},
+  {name:'Primaquine',route:'Oral',tl:'Red'},
+  {name:'Pyrantel',route:'Oral',tl:'Green'},
+  {name:'Pyrimethamine',route:'Oral',tl:'Red'},
+  {name:'Quinine',route:'Oral',tl:'Red'},
+  {name:'Quinine',route:'IV',tl:'Red'},
+  {name:'Remdesivir',route:'IV',tl:'Red'},
+  {name:'Rifampicin',route:'Oral',tl:'Red'},
+  {name:'Rifampicin',route:'IV',tl:'Red'},
+  {name:'Rifaximin',route:'Oral',tl:'Orange'},
+  {name:'Roxithromycin',route:'Oral',tl:'Green'},
+  {name:'Sodium fusidate',route:'Oral',tl:'Red'},
+  {name:'Sulfadiazine',route:'Oral',tl:'Red'},
+  {name:'Teicoplanin',route:'IV',tl:'Red'},
+  {name:'Terbinafine',route:'Oral',tl:'Orange'},
+  {name:'Tigecycline',route:'IV',tl:'Red'},
+  {name:'Tobramycin',route:'IV',tl:'Orange'},
+  {name:'Tobramycin',route:'Nebulised',tl:'Orange'},
+  {name:'Triclabendazole',route:'Oral',tl:'Red'},
+  {name:'Trimethoprim',route:'Oral',tl:'Green'},
+  {name:'Trimethoprim-sulfamethoxazole',route:'Oral',tl:'Green'},
+  {name:'Trimethoprim-sulfamethoxazole',route:'IV',tl:'Orange'},
+  {name:'Valaciclovir',route:'Oral',tl:'Green'},
+  {name:'Valganciclovir',route:'Oral',tl:'Red'},
+  {name:'Vancomycin',route:'Oral',tl:'Orange'},
+  {name:'Vancomycin',route:'IV',tl:'Orange'},
+  {name:'Voriconazole',route:'Oral',tl:'Red'},
+  {name:'Voriconazole',route:'IV',tl:'Red'},
+];
+
+const TICK_HOURS = 0.5;
+
+let S, caseHour, gameInt, gameOver, orderedTestsList, selectedIndication, selectedDuration;
+let activeDrugList = []; // array of drug objects currently active
+let editingMAR = null; // index of MAR entry currently being edited
+let notifiedExpiredAims = new Set(); // AIM numbers already announced as expired
+let urineCultureAvailableAt  = null; // game-hour when urine culture result becomes available
+let urineCultureOrderedAt   = null; // game-hour when urine culture was ordered
+let firstAbxOrderedAt       = null; // game-hour when the first antibiotic was ordered
+let aminoglycosideFirstUsed = null; // game-hour when gentamicin/tobramycin IV was first ever ordered
+let firstAppropriateEmpiricAt = null; // hour when first appropriate empiric abx was ordered
+let appropriateStepDownAt     = null; // hour when first appropriate step-down abx ordered after pivot
+let drugHistory               = [];   // all drugs ever ordered (shared refs with activeDrugList entries)
+
+function freshState(){
+  return {
+    breaches:new Set(),
+    temp:38.9, bpSys:109, bpDia:82, hr:87, rr:18, spo2:96,
+    aimNumber:'',
+    lifeForce:50
+  };
+}
+
+// ════════════════════════════════════════════
+// DRUG SEARCH & ORDER
+// ════════════════════════════════════════════
+let pendingDrug = null;
+
+function onDrugSearch(){
+  const q = document.getElementById('drug-search').value.trim().toLowerCase();
+  const box = document.getElementById('drug-results');
+  if(!q){box.style.display='none';box.innerHTML='';return;}
+  const matches = DRUGS.filter(d=>d.name.toLowerCase().includes(q)).slice(0,12);
+  if(!matches.length){box.style.display='none';return;}
+  box.innerHTML = matches.map(d=>{
+    const cls='dri-'+d.tl.toLowerCase();
+    const key=DRUGS.indexOf(d);
+    return `<div class="drug-result-item" onclick="selectPending(${key})">
+      <span class="dri-name">${d.name} <span style="color:#6a8aa0;font-size:9px;">(${d.route})</span></span>
+      <span class="dri-badge ${cls}">${d.tl}</span>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+
+function selectPending(idx){
+  pendingDrug = DRUGS[idx];
+  document.getElementById('drug-search').value = pendingDrug.name + ' (' + pendingDrug.route + ')';
+  document.getElementById('drug-results').style.display='none';
+  document.getElementById('drug-results').innerHTML='';
+  const pd = document.getElementById('pending-drug');
+  pd.innerHTML = `<div class="pending-chip">Selected: ${pendingDrug.name} · ${pendingDrug.route} · <span style="color:${pendingDrug.tl==='Green'?'#2ec26a':pendingDrug.tl==='Red'?'#ff8888':'#f0a830'}">${pendingDrug.tl}</span></div>`;
+  document.getElementById('btn-order').disabled = false;
+}
+
+function orderDrug(){
+  if(!pendingDrug) return;
+  const d = pendingDrug;
+  const indication = selectedIndication || '';
+  const stopDate   = selectedDuration   || '';
+  const aimNumber  = S.aimNumber || '';
+
+  // RED check
+  if(d.tl==='Red'){
+    feed('<b>🔴 RED agent:</b> '+d.name+' requires AMS discussion + AIM# before prescribing.','warn');
+  }
+
+  // Sulfa allergy breach — trimethoprim and sulfonamides are contraindicated
+  const isSulfa = d.name.toLowerCase().includes('trimethoprim') || d.name.toLowerCase().includes('sulfamethoxazole');
+  if(isSulfa && !S.breaches.has('sulfa-allergy')){
+    S.breaches.add('sulfa-allergy');
+    feed('⚠️ <b>SAFETY BREACH:</b> '+d.name+' contains a sulfonamide — patient has documented <b>sulfa allergy (Anaphylaxis)</b>. Contraindicated.','bad');
+  }
+
+  if(firstAbxOrderedAt === null) firstAbxOrderedAt = caseHour;
+  if(isAminoglycosideIV(d) && aminoglycosideFirstUsed === null) aminoglycosideFirstUsed = caseHour;
+
+  // Track first appropriate empiric and step-down timings
+  const _computedPivot = urineCultureAvailableAt !== null
+    ? urineCultureAvailableAt : firstAbxOrderedAt + 24;
+  const _isBeforePivot = caseHour < _computedPivot;
+  if(evaluateDrug(d, caseHour) === 'true'){
+    if(_isBeforePivot  && firstAppropriateEmpiricAt === null) firstAppropriateEmpiricAt = caseHour;
+    if(!_isBeforePivot && appropriateStepDownAt     === null) appropriateStepDownAt     = caseHour;
+  }
+
+  const entry = {drug:d, indication, stopDate, aimNumber, orderedAt:caseHour, discontinuedAt:null};
+  activeDrugList.push(entry);
+  drugHistory.push(entry); // same object reference — MAR edits update history automatically
+
+  let msg = 'Ordered: <b>'+d.name+' ('+d.route+')</b> · TL '+d.tl;
+  if(indication) msg += ' · <i>'+indication+'</i>';
+  if(stopDate)   msg += ' · Duration: '+stopDate;
+  feed(msg, d.tl==='Green'?'good':d.tl==='Red'?'warn':'');
+
+  // Reset left panel
+  pendingDrug = null;
+  document.getElementById('drug-search').value='';
+  document.getElementById('pending-drug').innerHTML='';
+  selectedIndication=null; selectedDuration=null; S.aimNumber='';
+  document.getElementById('field-indication').value='';
+  document.getElementById('indication-results').innerHTML='';
+  document.getElementById('indication-results').style.display='none';
+  document.getElementById('pending-indication').innerHTML='';
+  document.getElementById('field-duration').value='';
+  document.getElementById('duration-results').innerHTML='';
+  document.getElementById('duration-results').style.display='none';
+  document.getElementById('pending-duration').innerHTML='';
+  document.getElementById('field-aim').value='';
+  document.getElementById('btn-order').disabled=true;
+
+  render();
+}
+
+function discontinueDrug(idx){
+  const entry = activeDrugList[idx];
+  entry.discontinuedAt = caseHour;
+  feed('⏹ Discontinued: <b>'+entry.drug.name+' ('+entry.drug.route+')</b>.','warn');
+  activeDrugList.splice(idx,1);
+  render();
+}
+
+// ════════════════════════════════════════════
+// TEST DATABASE
+// ════════════════════════════════════════════
+const TESTS = [
+  // Cultures
+  {name:'Blood culture',          cat:'Culture',    icon:'🧫'},
+  {name:'Urine culture (MC&S)',   cat:'Culture',    icon:'🧫'},
+  {name:'Sputum culture (MC&S)',  cat:'Culture',    icon:'🧫'},
+  {name:'Wound swab culture',     cat:'Culture',    icon:'🧫'},
+  {name:'CSF culture',            cat:'Culture',    icon:'🧫'},
+  {name:'Stool culture (MC&S)',   cat:'Culture',    icon:'🧫'},
+  {name:'Throat swab culture',    cat:'Culture',    icon:'🧫'},
+  {name:'Bronchial wash culture', cat:'Culture',    icon:'🧫'},
+  {name:'Tissue culture',         cat:'Culture',    icon:'🧫'},
+  // Microscopy
+  {name:'Urine microscopy',       cat:'Microscopy', icon:'🔬'},
+  {name:'Sputum microscopy',      cat:'Microscopy', icon:'🔬'},
+  {name:'CSF microscopy',         cat:'Microscopy', icon:'🔬'},
+  {name:'Blood film',             cat:'Microscopy', icon:'🔬'},
+  {name:'Gram stain',             cat:'Microscopy', icon:'🔬'},
+  {name:'Stool microscopy',       cat:'Microscopy', icon:'🔬'},
+  // Serology & PCR
+  {name:'HIV serology',           cat:'Serology',   icon:'💉'},
+  {name:'Hepatitis B serology',   cat:'Serology',   icon:'💉'},
+  {name:'Hepatitis C serology',   cat:'Serology',   icon:'💉'},
+  {name:'EBV serology',           cat:'Serology',   icon:'💉'},
+  {name:'CMV serology',           cat:'Serology',   icon:'💉'},
+  {name:'Influenza PCR',          cat:'PCR',        icon:'🧬'},
+  {name:'COVID-19 PCR',           cat:'PCR',        icon:'🧬'},
+  {name:'Respiratory viral PCR',  cat:'PCR',        icon:'🧬'},
+  {name:'Fungal PCR',             cat:'PCR',        icon:'🧬'},
+  {name:'Urine Legionella antigen',cat:'Antigen',   icon:'🧪'},
+  {name:'Urine pneumococcal antigen',cat:'Antigen', icon:'🧪'},
+  {name:'Cryptococcal antigen',   cat:'Antigen',    icon:'🧪'},
+  // Biomarkers
+  {name:'C-reactive protein (CRP)',cat:'Biomarker', icon:'📊'},
+  {name:'Procalcitonin (PCT)',     cat:'Biomarker', icon:'📊'},
+  {name:'Lactate',                 cat:'Biomarker', icon:'📊'},
+  {name:'Beta-D-glucan',           cat:'Biomarker', icon:'📊'},
+  {name:'Galactomannan',           cat:'Biomarker', icon:'📊'},
+  // Haematology & Biochemistry
+  {name:'Full blood count (FBC)',  cat:'Haematology',icon:'🩸'},
+  {name:'Urea & electrolytes (U&E)',cat:'Biochemistry',icon:'🩸'},
+  {name:'Liver function tests (LFT)',cat:'Biochemistry',icon:'🩸'},
+  {name:'Blood glucose',           cat:'Biochemistry',icon:'🩸'},
+  {name:'Coagulation screen',      cat:'Haematology',icon:'🩸'},
+  // Imaging
+  {name:'Chest X-ray',             cat:'Imaging',   icon:'🩻'},
+  {name:'CT abdomen/pelvis',       cat:'Imaging',   icon:'🩻'},
+  {name:'CT chest',                cat:'Imaging',   icon:'🩻'},
+  {name:'Renal ultrasound',        cat:'Imaging',   icon:'🩻'},
+  {name:'Echocardiogram',          cat:'Imaging',   icon:'🩻'},
+  // Swabs
+  {name:'MRSA screen',             cat:'Swab',      icon:'🧫'},
+  {name:'Nasal swab',              cat:'Swab',      icon:'🧫'},
+  {name:'Skin swab',               cat:'Swab',      icon:'🧫'},
+];
+
+let pendingTest = null;
+
+function onTestSearch(){
+  const q = document.getElementById('test-search').value.toLowerCase().trim();
+  const box = document.getElementById('test-results');
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = TESTS.filter(t=>t.name.toLowerCase().includes(q)||t.cat.toLowerCase().includes(q)).slice(0,10);
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.map((t,i)=>`
+    <div class="drug-result-item" onclick="selectPendingTest(${TESTS.indexOf(t)})">
+      <span class="dri-name">${t.icon} ${t.name}</span>
+      <span class="dri-badge" style="background:#111d2a;color:#7ecfff;border:1px solid #2a4a6a;">${t.cat}</span>
+    </div>`).join('');
+  box.style.display='block';
+}
+
+function selectPendingTest(idx){
+  pendingTest = TESTS[idx];
+  document.getElementById('test-search').value = pendingTest.name;
+  document.getElementById('test-results').style.display='none';
+  document.getElementById('test-results').innerHTML='';
+  document.getElementById('pending-test').innerHTML=`<div class="pending-chip" style="margin-top:5px;">${pendingTest.icon} ${pendingTest.name}</div>`;
+  document.getElementById('btn-test').disabled=false;
+}
+
+function orderTest(){
+  if(!pendingTest) return;
+  const isCulture = pendingTest.cat==='Culture';
+  const hoursToResult = isCulture ? 24 : 2;
+  if(pendingTest.name==='Urine culture (MC&S)' && urineCultureOrderedAt===null) urineCultureOrderedAt=caseHour;
+  orderedTestsList.push({test:pendingTest, orderedAt:caseHour, hoursToResult, status:'pending'});
+  feed(pendingTest.icon+' Ordered: <b>'+pendingTest.name+'</b> — result in ~'+(isCulture?'24–48 hours (culture)':hoursToResult+' hours')+'.','good');
+  pendingTest=null;
+  document.getElementById('test-search').value='';
+  document.getElementById('pending-test').innerHTML='';
+  document.getElementById('btn-test').disabled=true;
+  renderTests();
+  render();
+}
+
+// ════════════════════════════════════════════
+// INDICATION SEARCH
+// ════════════════════════════════════════════
+const INDICATIONS = [
+  // Urinary
+  'Acute pyelonephritis','Urinary tract infection (UTI)','Complicated UTI',
+  'Catheter-associated UTI (CAUTI)','Urosepsis',
+  // Respiratory
+  'Community-acquired pneumonia (CAP)','Hospital-acquired pneumonia (HAP)',
+  'Ventilator-associated pneumonia (VAP)','Aspiration pneumonia',
+  'Acute bronchitis','Exacerbation of COPD','Lung abscess','Empyema',
+  'Influenza','COVID-19 pneumonia',
+  // Abdominal
+  'Intra-abdominal infection','Spontaneous bacterial peritonitis (SBP)',
+  'Ascending cholangitis','Acute cholecystitis','Diverticulitis',
+  'Appendicitis','Liver abscess','Clostridioides difficile infection',
+  // Skin & soft tissue
+  'Cellulitis','Erysipelas','Necrotising fasciitis','Wound infection',
+  'Diabetic foot infection','Infected pressure ulcer',
+  // Bone & joint
+  'Osteomyelitis','Septic arthritis','Prosthetic joint infection',
+  // CNS
+  'Bacterial meningitis','Viral encephalitis','Brain abscess',
+  // Bloodstream
+  'Sepsis (source unknown)','Bacteraemia','Infective endocarditis',
+  'Central line-associated bloodstream infection (CLABSI)',
+  // Other
+  'Febrile neutropenia','Septic shock','Surgical site infection',
+  'Pelvic inflammatory disease (PID)','Surgical prophylaxis','Medical prophylaxis',
+];
+
+function onIndicationSearch(){
+  const q = document.getElementById('field-indication').value.toLowerCase().trim();
+  const box = document.getElementById('indication-results');
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = INDICATIONS.filter(ind=>ind.toLowerCase().includes(q)).slice(0,8);
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.map(m=>{
+    const idx = INDICATIONS.indexOf(m);
+    return `<div class="drug-result-item" onclick="selectIndication(${idx})">
+      <span class="dri-name">${m}</span>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+
+function selectIndication(idx){
+  const val = INDICATIONS[idx];
+  selectedIndication = val;
+  document.getElementById('field-indication').value = '';
+  const box = document.getElementById('indication-results');
+  box.style.display='none'; box.innerHTML='';
+  document.getElementById('pending-indication').innerHTML =
+    `<div class="pending-chip" style="margin-top:4px;">📋 ${val}</div>`;
+}
+
+const DURATIONS = Array.from({length:30},(_,i)=>(i+1)+' day'+(i>0?'s':''));
+
+function onDurationSearch(){
+  const q = document.getElementById('field-duration').value.toLowerCase().trim();
+  const box = document.getElementById('duration-results');
+  const matches = q ? DURATIONS.filter(d=>d.includes(q)) : DURATIONS.slice(0,10);
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.map(d=>{
+    const idx = DURATIONS.indexOf(d);
+    return `<div class="drug-result-item" onclick="selectDuration(${idx})">
+      <span class="dri-name">${d}</span>
+    </div>`;
+  }).join('');
+  box.style.display='block';
+}
+
+function selectDuration(idx){
+  const val = DURATIONS[idx];
+  selectedDuration = val;
+  document.getElementById('field-duration').value = '';
+  const box = document.getElementById('duration-results');
+  box.style.display='none'; box.innerHTML='';
+  document.getElementById('pending-duration').innerHTML =
+    `<div class="pending-chip" style="margin-top:4px;">⏱ ${val}</div>`;
+}
+
+// ════════════════════════════════════════════
+// TEST RESULTS
+// ════════════════════════════════════════════
+function getTestResultHTML(name){
+  const R='<span style="color:#c2362f;font-weight:700;">R</span>';
+  const S_='<span style="color:#1f9d57;font-weight:700;">S</span>';
+  const I='<span style="color:#c47a12;font-weight:700;">I</span>';
+  const hi='color:#c2362f;font-weight:600;';
+  const lo='color:#2b8fd6;font-weight:600;';
+  const abxRow=(drug,res)=>`<tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">${drug}</td><td style="padding:3px 6px;text-align:center;">${res}</td></tr>`;
+  const hdr=(title,sub)=>`<div style="font-family:'Segoe UI',Arial,sans-serif;">
+    <div style="font-size:15px;font-weight:700;border-bottom:2px solid #1a2535;padding-bottom:6px;margin-bottom:10px;color:#1a2535;">${title}</div>
+    <div style="font-size:11px;color:#7a90a4;margin-bottom:10px;">${sub}</div>`;
+
+  const results = {
+    'Urine culture (MC&S)': hdr('MICROBIOLOGY — URINE MC&S','Specimen: Mid-stream urine &nbsp;|&nbsp; Status: FINAL')+
+      `<p style="margin:6px 0;font-size:12px;"><b>MICROSCOPY</b></p>
+      <table style="font-size:12px;width:100%;margin-bottom:8px;">
+        <tr><td style="padding:2px 6px;">WBC</td><td style="padding:2px 6px;${hi}">&gt;100 cells/µL &uarr;</td><td style="padding:2px 6px;color:#aaa;">Ref: &lt;5</td></tr>
+        <tr><td style="padding:2px 6px;">RBC</td><td style="padding:2px 6px;${hi}">25 cells/µL &uarr;</td><td style="padding:2px 6px;color:#aaa;">Ref: &lt;5</td></tr>
+        <tr><td style="padding:2px 6px;">Bacteria</td><td style="padding:2px 6px;${hi}">Many gram-negative rods</td><td></td></tr>
+        <tr><td style="padding:2px 6px;">Nitrites</td><td style="padding:2px 6px;${hi}">Positive</td><td></td></tr>
+      </table>
+      <p style="margin:6px 0;font-size:12px;"><b>CULTURE</b></p>
+      <div style="font-size:12px;background:#f0fff4;border:1px solid #2ec26a;border-radius:5px;padding:8px 10px;margin-bottom:8px;">
+        <b>ORGANISM: Escherichia coli</b><br>Colony count: &gt;100,000 CFU/mL
+      </div>
+      <p style="margin:6px 0;font-size:12px;"><b>SUSCEPTIBILITIES</b></p>
+      <table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Antibiotic</td><td style="padding:4px 6px;text-align:center;">Result</td></tr>
+        ${abxRow('Amoxicillin',R)}
+        ${abxRow('Amoxicillin-clavulanate',S_)}
+        ${abxRow('Cefalexin',S_)}
+        ${abxRow('Cefazolin',S_)}
+        ${abxRow('Ceftriaxone',S_)}
+        ${abxRow('Gentamicin',S_)}
+        ${abxRow('Trimethoprim',S_)}
+        ${abxRow('Trimethoprim-sulfamethoxazole',S_)}
+        ${abxRow('Ciprofloxacin',S_)}
+        ${abxRow('Nitrofurantoin',S_)}
+        ${abxRow('Meropenem',S_)}
+      </table></div>`,
+
+    'Blood culture': hdr('MICROBIOLOGY — BLOOD CULTURE','2 sets collected &nbsp;|&nbsp; Status: FINAL — 5 days incubation')+
+      `<div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">NO GROWTH DETECTED</div></div>`,
+
+    'Sputum culture (MC&S)': hdr('MICROBIOLOGY — SPUTUM MC&S','Specimen: Expectorated sputum &nbsp;|&nbsp; Status: FINAL')+
+      `<div style="font-size:12px;margin-bottom:6px;"><b>MICROSCOPY:</b> Inadequate sample — &gt;25 squamous cells/LPF. Result may not reflect lower respiratory tract.</div>
+      <div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">NO SIGNIFICANT GROWTH</div></div>`,
+
+    'Wound swab culture': hdr('MICROBIOLOGY — WOUND SWAB MC&S','Status: FINAL')+
+      `<div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">NO GROWTH DETECTED</div></div>`,
+
+    'CSF culture': hdr('MICROBIOLOGY — CSF MC&S','Status: FINAL')+
+      `<div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">NO GROWTH DETECTED</div></div>`,
+
+    'Stool culture (MC&S)': hdr('MICROBIOLOGY — STOOL MC&S','Status: FINAL')+
+      `<div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">NO ENTERIC PATHOGENS ISOLATED</div></div>`,
+
+    'Urine microscopy': hdr('MICROBIOLOGY — URINE MICROSCOPY','Specimen: Mid-stream urine &nbsp;|&nbsp; Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">WBC</td><td style="padding:3px 6px;${hi}">&gt;100 cells/µL &uarr;</td><td style="padding:3px 6px;color:#aaa;">&lt;5</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">RBC</td><td style="padding:3px 6px;${hi}">25 cells/µL &uarr;</td><td style="padding:3px 6px;color:#aaa;">&lt;5</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Bacteria</td><td style="padding:3px 6px;${hi}">Many</td><td></td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Nitrites</td><td style="padding:3px 6px;${hi}">Positive</td><td></td></tr>
+        <tr><td style="padding:3px 6px;">Leukocyte esterase</td><td style="padding:3px 6px;${hi}">3+ Positive</td><td></td></tr>
+      </table></div>`,
+
+    'Full blood count (FBC)': hdr('HAEMATOLOGY — FULL BLOOD COUNT','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">WBC</td><td style="padding:3px 6px;${hi}">18.2 ×10⁹/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">4.0–11.0</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Neutrophils</td><td style="padding:3px 6px;${hi}">15.8 ×10⁹/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">2.0–7.5</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Lymphocytes</td><td style="padding:3px 6px;">1.4 ×10⁹/L</td><td style="padding:3px 6px;color:#aaa;">1.0–4.0</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Haemoglobin</td><td style="padding:3px 6px;${lo}">112 g/L &darr;</td><td style="padding:3px 6px;color:#aaa;">120–160</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">MCV</td><td style="padding:3px 6px;">84 fL</td><td style="padding:3px 6px;color:#aaa;">80–100</td></tr>
+        <tr><td style="padding:3px 6px;">Platelets</td><td style="padding:3px 6px;">198 ×10⁹/L</td><td style="padding:3px 6px;color:#aaa;">150–400</td></tr>
+      </table></div>`,
+
+    'C-reactive protein (CRP)': hdr('BIOCHEMISTRY — C-REACTIVE PROTEIN','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr><td style="padding:3px 6px;">CRP</td><td style="padding:3px 6px;${hi}">186 mg/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">&lt;5</td></tr>
+      </table></div>`,
+
+    'Procalcitonin (PCT)': hdr('BIOCHEMISTRY — PROCALCITONIN','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr><td style="padding:3px 6px;">PCT</td><td style="padding:3px 6px;${hi}">2.8 µg/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">&lt;0.1 (sepsis threshold &gt;0.5)</td></tr>
+      </table>
+      <div style="font-size:11px;color:#7a90a4;margin-top:6px;">Consistent with bacterial sepsis. Consider repeat in 48h to monitor response.</div></div>`,
+
+    'Lactate': hdr('BIOCHEMISTRY — LACTATE','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr><td style="padding:3px 6px;">Lactate</td><td style="padding:3px 6px;${hi}">2.4 mmol/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">&lt;2.0 (severe sepsis &gt;4.0)</td></tr>
+      </table></div>`,
+
+    'Urea & electrolytes (U&E)': hdr('BIOCHEMISTRY — UREA & ELECTROLYTES','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Sodium</td><td style="padding:3px 6px;">136 mmol/L</td><td style="padding:3px 6px;color:#aaa;">135–145</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Potassium</td><td style="padding:3px 6px;">3.8 mmol/L</td><td style="padding:3px 6px;color:#aaa;">3.5–5.0</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Urea</td><td style="padding:3px 6px;${hi}">12.4 mmol/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">2.5–7.5</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Creatinine</td><td style="padding:3px 6px;${hi}">148 µmol/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">45–90</td></tr>
+        <tr><td style="padding:3px 6px;">eGFR</td><td style="padding:3px 6px;${hi}">35 mL/min &darr;</td><td style="padding:3px 6px;color:#aaa;">&gt;60</td></tr>
+      </table></div>`,
+
+    'Liver function tests (LFT)': hdr('BIOCHEMISTRY — LIVER FUNCTION TESTS','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">ALT</td><td style="padding:3px 6px;">32 U/L</td><td style="padding:3px 6px;color:#aaa;">7–45</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">AST</td><td style="padding:3px 6px;">28 U/L</td><td style="padding:3px 6px;color:#aaa;">10–40</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">ALP</td><td style="padding:3px 6px;">78 U/L</td><td style="padding:3px 6px;color:#aaa;">35–105</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Bilirubin</td><td style="padding:3px 6px;">14 µmol/L</td><td style="padding:3px 6px;color:#aaa;">&lt;20</td></tr>
+        <tr><td style="padding:3px 6px;">Albumin</td><td style="padding:3px 6px;${lo}">32 g/L &darr;</td><td style="padding:3px 6px;color:#aaa;">35–50</td></tr>
+      </table></div>`,
+
+    'Blood glucose': hdr('BIOCHEMISTRY — BLOOD GLUCOSE','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr><td style="padding:3px 6px;">Random glucose</td><td style="padding:3px 6px;">8.2 mmol/L</td><td style="padding:3px 6px;color:#aaa;">4.0–11.0 (random)</td></tr>
+      </table></div>`,
+
+    'Coagulation screen': hdr('HAEMATOLOGY — COAGULATION SCREEN','Status: FINAL')+
+      `<table style="font-size:12px;width:100%;border-collapse:collapse;">
+        <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Parameter</td><td style="padding:4px 6px;">Result</td><td style="padding:4px 6px;">Reference</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">PT</td><td style="padding:3px 6px;">14.2 sec</td><td style="padding:3px 6px;color:#aaa;">11–15</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">APTT</td><td style="padding:3px 6px;">31 sec</td><td style="padding:3px 6px;color:#aaa;">25–38</td></tr>
+        <tr><td style="padding:3px 6px;">INR</td><td style="padding:3px 6px;">1.1</td><td style="padding:3px 6px;color:#aaa;">0.9–1.2</td></tr>
+      </table></div>`,
+
+    'Blood film': hdr('HAEMATOLOGY — BLOOD FILM','Status: FINAL')+
+      `<div style="font-size:12px;line-height:1.7;">
+        Neutrophilia with left shift. Toxic granulation present.<br>
+        No blast cells or malarial parasites identified.<br>
+        <b>Impression:</b> Changes consistent with bacterial infection/sepsis.
+      </div></div>`,
+
+    'Chest X-ray': hdr('IMAGING — CHEST X-RAY','Status: FINAL')+
+      `<div style="font-size:12px;line-height:1.7;">
+        No consolidation, effusion or pneumothorax.<br>
+        Heart size normal. Lung fields clear.<br>
+        No pleural disease. Normal mediastinum.<br>
+        <b>Impression:</b> Normal chest X-ray.
+      </div></div>`,
+
+    'Renal ultrasound': hdr('IMAGING — RENAL ULTRASOUND','Status: FINAL')+
+      `<div style="font-size:12px;line-height:1.7;">
+        Right kidney: 11.2 cm — mildly increased echogenicity, perinephric stranding.<br>
+        Left kidney: 10.8 cm — normal echogenicity.<br>
+        No hydronephrosis, calculi or abscess identified.<br>
+        Bladder: unremarkable.<br>
+        <b>Impression:</b> Sonographic changes consistent with acute right pyelonephritis.
+      </div></div>`,
+
+    'CT abdomen/pelvis': hdr('IMAGING — CT ABDOMEN/PELVIS WITH CONTRAST','Status: FINAL')+
+      `<div style="font-size:12px;line-height:1.7;">
+        Right kidney demonstrates striated nephrogram pattern with perinephric fat stranding.<br>
+        No renal abscess, calculi or ureteric obstruction.<br>
+        Left kidney: normal. No lymphadenopathy.<br>
+        No free fluid or pneumoperitoneum.<br>
+        <b>Impression:</b> Acute right pyelonephritis. No abscess or obstructive uropathy.
+      </div></div>`,
+
+    'Gram stain': hdr('MICROBIOLOGY — GRAM STAIN','Status: FINAL')+
+      `<div style="font-size:12px;line-height:1.7;background:#fef9ec;border:1px solid #f0a830;border-radius:5px;padding:8px 10px;">
+        Many gram-negative rods.<br>
+        Many polymorphonuclear cells (>25/LPF).<br>
+        No gram-positive organisms seen.
+      </div></div>`,
+
+    'Urine Legionella antigen': hdr('MICROBIOLOGY — URINE LEGIONELLA ANTIGEN','Status: FINAL')+
+      `<div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">NOT DETECTED</div></div>`,
+
+    'Urine pneumococcal antigen': hdr('MICROBIOLOGY — URINE PNEUMOCOCCAL ANTIGEN','Status: FINAL')+
+      `<div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">NOT DETECTED</div></div>`,
+
+    'MRSA screen': hdr('MICROBIOLOGY — MRSA SCREEN','Status: FINAL')+
+      `<div style="font-size:12px;margin-bottom:4px;">Nasal swab: Negative &nbsp;|&nbsp; Groin swab: Negative</div>
+      <div style="font-size:13px;background:#f0f8ff;border:1px solid #9fc1de;border-radius:5px;padding:10px;text-align:center;font-weight:600;color:#1a2535;">MRSA NOT DETECTED</div></div>`,
+  };
+
+  return results[name] || hdr('RESULT — '+name.toUpperCase(),'Status: FINAL')+
+    `<div style="font-size:12px;line-height:1.7;color:#556;">No significant abnormality detected.</div></div>`;
+}
+
+function renderTests(){
+  if(!orderedTestsList || !orderedTestsList.length){
+    document.getElementById('test-panel').style.display='none'; return;
+  }
+  document.getElementById('test-panel').style.display='block';
+  document.getElementById('test-list-display').innerHTML = orderedTestsList.map((entry,i)=>{
+    const btnClass = entry.status==='available' ? 'available' : 'pending';
+    const onclick  = entry.status==='available' ? `showTestResult(${i})` : '';
+    let btnLabel;
+    if(entry.status==='available'){
+      btnLabel = '● Available';
+    } else {
+      const hoursLeft = Math.max(0, Math.ceil((entry.orderedAt + entry.hoursToResult) - caseHour));
+      btnLabel = `⏳ ${hoursLeft}h`;
+    }
+    return `<div class="test-item">
+      <span class="test-item-name">${entry.test.icon} ${entry.test.name}</span>
+      <button class="test-btn ${btnClass}" ${onclick?'onclick="'+onclick+'"':''} ${entry.status!=='available'?'disabled':''}>${btnLabel}</button>
+    </div>`;
+  }).join('');
+}
+
+function showTestResult(idx){
+  const entry = orderedTestsList[idx];
+  document.getElementById('result-content').innerHTML = getTestResultHTML(entry.test.name);
+  document.getElementById('result-modal').style.display='flex';
+}
+function closeResult(){
+  document.getElementById('result-modal').style.display='none';
+}
+
+// ════════════════════════════════════════════
+// FEED
+// ════════════════════════════════════════════
+function dayStr(h){return 'Day '+(Math.floor(h/24)+1);}
+function feed(text,cls){
+  const f=document.getElementById('feed');
+  const d=document.createElement('div');
+  d.className='fitem'+(cls?' '+cls:'');
+  d.innerHTML='<span class="d">'+dayStr(caseHour)+'</span>'+text;
+  f.appendChild(d);
+  f.scrollTop = f.scrollHeight;
+}
+
+// ════════════════════════════════════════════
+// SCORING
+// ════════════════════════════════════════════
+function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
+
+// Single source of truth for drug appropriateness.
+// atHour = the hour the drug was (or would be) ordered; used to anchor the pivot when no culture taken.
+function evaluateDrug(drug, atHour){
+  const name  = drug.name.toLowerCase();
+  const route = drug.route.toLowerCase();
+
+  // Aminoglycosides: appropriate only within 24h of first-ever use this case
+  if(isAminoglycosideIV(drug)){
+    const firstUsed = aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : atHour;
+    return (caseHour - firstUsed) < 24 ? 'true' : 'false';
+  }
+
+  // Pivot: culture result time, or 24h from first antibiotic (anchored — not reset on reorder)
+  const pivotHour = urineCultureAvailableAt !== null
+    ? urineCultureAvailableAt
+    : (firstAbxOrderedAt !== null ? firstAbxOrderedAt : atHour) + 24;
+
+  if(caseHour < pivotHour){
+    return name.includes('ceftriaxone') ? 'true' : 'false';
+  }
+
+  // After pivot: step-down agents (trimethoprim/TMP-SMX excluded — sulfa allergy)
+  if(name.includes('cefazolin')) return 'true';
+  if(name.includes('cefalexin') && route.includes('oral')) return 'true';
+  return 'false';
+}
+
+function getEffectiveness(){
+  if(!activeDrugList.length) return 'none';
+  if(activeDrugList.length !== 1) return 'false';
+  const e = activeDrugList[0];
+  return evaluateDrug(e.drug, e.orderedAt || 0);
+}
+
+
+function stewardship(){
+  const allHaveInd  = activeDrugList.length>0 && activeDrugList.every(e=>e.indication);
+  const allHaveStop = activeDrugList.length>0 && activeDrugList.every(e=>e.stopDate);
+  const cultOk      = urineCultureOrderedAt !== null && (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt);
+  const appOk       = getEffectiveness()==='true' && S.breaches.size===0;
+  const activeAimEntries = activeDrugList.filter(e=>
+    e.drug.tl==='Red' ||
+    (e.drug.tl==='Orange' && (caseHour-e.orderedAt)>48) ||
+    (e.drug.tl==='Orange' && e.aimNumber)
+  );
+  const aimApplicable = activeAimEntries.length > 0;
+  const aimOk = aimApplicable && activeAimEntries.every(e=>e.aimNumber && !isAimExpired(e.aimNumber));
+  // Weights depend on whether AIM is applicable
+  const indWeight  = aimApplicable ? 10 : 15;
+  const stopWeight = aimApplicable ? 10 : 15;
+  let score = 0;
+  if(appOk)       score += 50;
+  if(allHaveInd)  score += indWeight;
+  if(allHaveStop) score += stopWeight;
+  if(cultOk)      score += 20;
+  if(aimOk)       score += 10;
+  return score;
+}
+
+function onAimInput(){
+  S.aimNumber = document.getElementById('field-aim').value.trim();
+  render();
+}
+
+// Generate AIM number; expiryHour = game-hour when approval ends (encoded as MMDD)
+function makeAIM(expiryHour){
+  const nnnn = String(Math.floor(1000+Math.random()*9000));
+  const codes=['SC','AR','BN'];
+  const xx=codes[Math.floor(Math.random()*codes.length)];
+  const totalDays=Math.floor(expiryHour/24);
+  const mm=String(Math.floor(totalDays/30)+1).padStart(2,'0');
+  const dd=String((totalDays%30)+1).padStart(2,'0');
+  return nnnn+xx+mm+dd;
+}
+
+// Decode the expiry hour encoded in the MMDD tail of an AIM number
+function aimExpiryHour(aimNum){
+  if(!aimNum || aimNum.length < 4) return Infinity;
+  const mm = parseInt(aimNum.slice(-4,-2), 10);
+  const dd = parseInt(aimNum.slice(-2),    10);
+  if(isNaN(mm) || isNaN(dd)) return Infinity;
+  return ((mm-1)*30 + (dd-1)) * 24;
+}
+function isAimExpired(aimNum){
+  return !!aimNum && caseHour >= aimExpiryHour(aimNum);
+}
+
+function isAminoglycosideIV(drug){
+  return (drug.name.toLowerCase().includes('gentamicin') || drug.name.toLowerCase().includes('tobramycin'))
+    && drug.route.toLowerCase().includes('iv');
+}
+
+function isPendingDrugAppropriate(){
+  return !!pendingDrug && evaluateDrug(pendingDrug, caseHour) === 'true';
+}
+
+function contactAMS(){
+  // Check only the currently selected (pending) drug
+  if(pendingDrug && pendingDrug.tl === 'Green'){
+    feed('📞 <b>AMS Team:</b> AIM number not required — ' + pendingDrug.name + ' is a Green category antimicrobial.', 'warn');
+    return;
+  }
+  // Aminoglycoside-specific rules — handle separately (drug not on MAR yet at this point)
+  if(pendingDrug && isAminoglycosideIV(pendingDrug)){
+    if(aminoglycosideFirstUsed !== null){
+      feed('📞 <b>AMS Team:</b> AIM denied — ' + pendingDrug.name + ' has already been used this admission. Repeat aminoglycoside orders are not approved.', 'bad');
+      return;
+    }
+    // First aminoglycoside — approve for 24h from order
+    const aimNum = makeAIM(caseHour + 24);
+    S.aimNumber = aimNum;
+    document.getElementById('field-aim').value = aimNum;
+    feed('📞 <b>AMS Team contacted.</b> AIM Number issued: <b>' + aimNum + '</b>. Approved for 24 hours — reassess after culture results.', 'good');
+    render();
+    return;
+  }
+  // For non-aminoglycosides: check pending drug appropriateness directly
+  // (getEffectiveness() checks the MAR, but pending drug isn't ordered yet)
+  if(!pendingDrug || !isPendingDrugAppropriate()){
+    feed('📞 <b>AMS Team:</b> AIM number not provided — antimicrobial choice is not appropriate for this indication.', 'bad');
+    return;
+  }
+
+  const aimNum = makeAIM(caseHour + 48);
+  S.aimNumber = aimNum;
+  document.getElementById('field-aim').value = aimNum;
+  feed('📞 <b>AMS Team contacted.</b> AIM Number issued: <b>' + aimNum + '</b>. Review completed — continue antimicrobial stewardship plan.', 'good');
+  render();
+}
+
+function renewAIM(i){
+  const entry = activeDrugList[i];
+  if(!entry) return;
+  // Aminoglycosides cannot be renewed after 24h window
+  if(isAminoglycosideIV(entry.drug)){
+    if(aminoglycosideFirstUsed !== null && (caseHour - aminoglycosideFirstUsed) >= 24){
+      feed('📞 <b>AMS Team:</b> AIM renewal denied — 24-hour approved window for ' + entry.drug.name + ' has elapsed. Discontinue and reassess.', 'bad');
+      return;
+    }
+  }
+  if(getEffectiveness() !== 'true' || S.breaches.size > 0){
+    feed('📞 <b>AMS Team:</b> AIM renewal not provided — antimicrobial choice is not appropriate for this indication.', 'bad');
+    return;
+  }
+  // Renew: aminoglycosides still expire at aminoglycosideFirstUsed+24, others +48h from now
+  const isAGRenew = isAminoglycosideIV(entry.drug);
+  const expiryHourRenew = isAGRenew ? ((aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : entry.orderedAt) + 24) : (caseHour + 48);
+  const aimNum = makeAIM(expiryHourRenew);
+  const oldAim = entry.aimNumber;
+  entry.aimNumber = aimNum;
+  feed('🔄 <b>AIM Renewed</b> for ' + entry.drug.name + ': <b>' + aimNum + '</b>' + (oldAim ? ' (was ' + oldAim + ')' : '') + '.', 'good');
+  render();
+}
+
+function callAMSforMAR(i){
+  const entry = activeDrugList[i];
+  if(!entry) return;
+  // Aminoglycoside-specific rules
+  if(isAminoglycosideIV(entry.drug)){
+    // Second order: orderedAt is after the first-ever aminoglycoside use
+    if(aminoglycosideFirstUsed !== null && entry.orderedAt > aminoglycosideFirstUsed){
+      feed('📞 <b>AMS Team:</b> AIM denied — ' + entry.drug.name + ' is a repeat aminoglycoside order. Not approved.', 'bad');
+      return;
+    }
+    // Past 24h window from first use
+    if(aminoglycosideFirstUsed !== null && (caseHour - aminoglycosideFirstUsed) >= 24){
+      feed('📞 <b>AMS Team:</b> AIM denied — approved 24-hour window for ' + entry.drug.name + ' has elapsed. Discontinue and reassess.', 'bad');
+      return;
+    }
+  }
+  if(getEffectiveness() !== 'true' || S.breaches.size > 0){
+    feed('📞 <b>AMS Team:</b> AIM number not provided for ' + entry.drug.name + ' — antimicrobial choice is not appropriate for this indication.', 'bad');
+    return;
+  }
+  // callAMSforMAR: aminoglycosides expire at aminoglycosideFirstUsed+24, others +48h from now
+  const isAGMAR = isAminoglycosideIV(entry.drug);
+  const expiryHourMAR = isAGMAR ? ((aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : entry.orderedAt) + 24) : (caseHour + 48);
+  const aimNum = makeAIM(expiryHourMAR);
+  entry.aimNumber = aimNum;
+  feed('📞 <b>AMS Team:</b> AIM Number issued for <b>' + entry.drug.name + '</b>: <b>' + aimNum + '</b>.', 'good');
+  render();
+}
+
+function startMAREdit(i){
+  editingMAR = i;
+  const e = activeDrugList[i];
+  // Find the mar-entry div and inject edit form in place
+  const entries = document.querySelectorAll('.mar-entry');
+  const entryEl = entries[i];
+  if(!entryEl) return;
+  // Replace content below drug-row with edit form
+  const existing = entryEl.querySelector('.mar-edit-form');
+  if(existing) return;
+  // Remove non-edit buttons
+  entryEl.querySelectorAll('.mar-meta,.mar-aim-btn,.disc-btn').forEach(el=>el.remove());
+  const editBtn = entryEl.querySelector('.mar-edit-btn');
+  if(editBtn) editBtn.remove();
+  const form = document.createElement('div');
+  form.className = 'mar-edit-form';
+  form.innerHTML = `
+    <div style="font-size:10px;color:#7ecfff;margin-bottom:2px;">INDICATION</div>
+    <input class="drug-search" id="mar-ind-input-${i}" type="text" placeholder="Type to search…" value="${e.indication||''}" oninput="onMARIndSearch(${i})" autocomplete="off" style="margin-bottom:2px;">
+    <div id="mar-ind-results-${i}" style="background:#0d1720;border:1px solid #2a3848;border-radius:4px;max-height:120px;overflow-y:auto;display:none;"></div>
+    <div style="font-size:10px;color:#7ecfff;margin:4px 0 2px;">DURATION</div>
+    <input class="drug-search" id="mar-dur-input-${i}" type="text" placeholder="Type to search…" value="${e.stopDate||''}" oninput="onMARDurSearch(${i})" onfocus="onMARDurSearch(${i})" autocomplete="off" style="margin-bottom:2px;">
+    <div id="mar-dur-results-${i}" style="background:#0d1720;border:1px solid #2a3848;border-radius:4px;max-height:120px;overflow-y:auto;display:none;"></div>
+    <div style="display:flex;gap:4px;margin-top:5px;">
+      <button class="order-btn" style="margin-top:0;" onclick="saveMAREdit(${i})">✔ SAVE</button>
+      <button class="disc-btn" style="width:auto;padding:3px 10px;" onclick="cancelMAREdit()">✖ Cancel</button>
+    </div>`;
+  entryEl.appendChild(form);
+}
+function cancelMAREdit(){ editingMAR=null; render(); }
+function saveMAREdit(i){
+  const entry = activeDrugList[i];
+  if(!entry) return;
+  const ind = document.getElementById('mar-ind-input-'+i).value.trim();
+  const dur = document.getElementById('mar-dur-input-'+i).value.trim();
+  if(ind) entry.indication = ind;
+  if(dur) entry.stopDate = dur;
+  editingMAR = null;
+  render();
+}
+function onMARIndSearch(i){
+  const q = document.getElementById('mar-ind-input-'+i).value.toLowerCase().trim();
+  const box = document.getElementById('mar-ind-results-'+i);
+  if(!q){ box.style.display='none'; box.innerHTML=''; return; }
+  const matches = INDICATIONS.filter(ind=>ind.toLowerCase().includes(q)).slice(0,6);
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.map(m=>{
+    const idx = INDICATIONS.indexOf(m);
+    return `<div class="drug-result-item" onclick="selectMARInd(${i},${idx})">${m}</div>`;
+  }).join('');
+  box.style.display='block';
+}
+function selectMARInd(i, idx){
+  document.getElementById('mar-ind-input-'+i).value = INDICATIONS[idx];
+  const box = document.getElementById('mar-ind-results-'+i);
+  box.style.display='none'; box.innerHTML='';
+}
+function onMARDurSearch(i){
+  const q = document.getElementById('mar-dur-input-'+i).value.toLowerCase().trim();
+  const box = document.getElementById('mar-dur-results-'+i);
+  const matches = q ? DURATIONS.filter(d=>d.includes(q)) : DURATIONS.slice(0,8);
+  if(!matches.length){ box.style.display='none'; return; }
+  box.innerHTML = matches.map(d=>{
+    const idx = DURATIONS.indexOf(d);
+    return `<div class="drug-result-item" onclick="selectMARDur(${i},${idx})">${d}</div>`;
+  }).join('');
+  box.style.display='block';
+}
+function selectMARDur(i, idx){
+  document.getElementById('mar-dur-input-'+i).value = DURATIONS[idx];
+  const box = document.getElementById('mar-dur-results-'+i);
+  box.style.display='none'; box.innerHTML='';
+}
+
+
+// state: true=green, false=red, null=grey (inactive)
+function setLight(id, state){
+  const rEl=document.getElementById('sl-'+id+'-r');
+  const gEl=document.getElementById('sl-'+id+'-g');
+  if(state===null){
+    rEl.className='sl-red'; gEl.className='sl-green';             // both dim
+  } else {
+    rEl.className='sl-red'+(state?'':' on');
+    gEl.className='sl-green'+(state?' on':'');
+  }
+}
+function setLightAim(){
+  const rEl=document.getElementById('sl-aim-r'), gEl=document.getElementById('sl-aim-g');
+  const cdEl=document.getElementById('aim-countdown');
+
+  // Countdown: find earliest Orange drug on MAR; show 48h countdown from its start
+  const orangeEntries = activeDrugList.filter(e=>e.drug.tl==='Orange');
+  if(orangeEntries.length){
+    const earliestOrange = Math.min(...orangeEntries.map(e=>e.orderedAt));
+    const hoursElapsed = caseHour - earliestOrange;
+    const hoursLeft = 48 - hoursElapsed;
+    if(hoursLeft > 0){
+      const h = Math.ceil(hoursLeft);
+      cdEl.textContent = h+'h';
+      cdEl.style.display='inline';
+    } else {
+      cdEl.style.display='none';
+    }
+  } else {
+    cdEl.style.display='none';
+  }
+
+  // Activate light only for: Red drugs, Orange drugs >48h, or Orange drugs with AIM documented
+  const activeEntries = activeDrugList.filter(e=>
+    e.drug.tl==='Red' ||
+    (e.drug.tl==='Orange' && (caseHour-e.orderedAt)>48) ||
+    (e.drug.tl==='Orange' && e.aimNumber)
+  );
+  if(!activeEntries.length){
+    rEl.className='sl-red'; gEl.className='sl-green'; return;     // grey — Orange <48h, no AIM yet
+  }
+  // Green if all active entries have AIM, red if any are missing
+  const allHaveAim = activeEntries.every(e=>e.aimNumber && !isAimExpired(e.aimNumber));
+  if(allHaveAim){
+    rEl.className='sl-red'; gEl.className='sl-green on';          // green
+  } else {
+    rEl.className='sl-red on'; gEl.className='sl-green';          // red
+  }
+}
+
+// ════════════════════════════════════════════
+// RENDER
+// ════════════════════════════════════════════
+function updateSpeedo(sc){
+  sc = Math.max(0, Math.min(100, sc));
+  const cx=100, cy=100, r=80, nl=65;
+  const angle = (1 - sc/100) * Math.PI;
+  const ex = cx + r*Math.cos(angle), ey = cy - r*Math.sin(angle);
+  const nx = cx + nl*Math.cos(angle), ny = cy - nl*Math.sin(angle);
+  // Needle
+  document.getElementById('speedo-needle').setAttribute('x2', nx.toFixed(1));
+  document.getElementById('speedo-needle').setAttribute('y2', ny.toFixed(1));
+  // Arc
+  const arcEl = document.getElementById('speedo-arc');
+  if(sc <= 0){
+    arcEl.setAttribute('d','');
+  } else if(sc >= 100){
+    arcEl.setAttribute('d',`M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}`);
+  } else {
+    arcEl.setAttribute('d',`M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${ex.toFixed(1)} ${ey.toFixed(1)}`);
+  }
+  const col = sc>=70?'#2ec26a':sc>=40?'#f0a830':'#ff5448';
+  arcEl.setAttribute('stroke', col);
+  document.getElementById('speedo-needle').setAttribute('stroke', col);
+  const valEl = document.getElementById('speedo-val');
+  valEl.textContent = sc+'%';
+  valEl.setAttribute('fill', col);
+}
+
+function render(){
+  // MAR — skip re-render while user is editing an entry (avoids destroying typed input)
+  if(editingMAR === null){
+    const infList=document.getElementById('active-inf-list');
+    if(!activeDrugList.length){
+      infList.innerHTML='<div class="inf-empty">No active antimicrobials</div>';
+    } else {
+      infList.innerHTML=activeDrugList.map((e,i)=>`
+        <div class="mar-entry">
+          <div class="mar-drug-row">
+            <span class="inf-dot ${e.drug.tl.toLowerCase()}"></span>
+            <span class="inf-name">${e.drug.name}</span>
+            <span class="inf-route">${e.drug.route}</span>
+            <button class="mar-edit-btn" onclick="startMAREdit(${i})">✏️ Edit</button>
+          </div>
+          ${e.indication||e.stopDate||e.aimNumber ? `<div class="mar-meta">${e.indication?'<span>Indication:</span> '+e.indication+'<br>':''}${e.stopDate?'<span>Duration:</span> '+e.stopDate+'<br>':''}${e.aimNumber?'<span>AIM#:</span> '+e.aimNumber:''}${e.aimNumber?` <button class="renew-aim-btn" onclick="renewAIM(${i})">🔄 Renew</button>`:''}</div>` : ''}
+          ${(e.drug.tl==='Red'||e.drug.tl==='Orange')&&!e.aimNumber ? `<button class="mar-aim-btn" onclick="callAMSforMAR(${i})">📞 Call AMS for AIM#</button>` : ''}
+          <button class="disc-btn" onclick="discontinueDrug(${i})">⏹ DISCONTINUE</button>
+        </div>`).join('');
+    }
+  }
+
+  // Clinical parameters
+  const tempEl=document.getElementById('param-temp');
+  tempEl.textContent=S.temp.toFixed(1);
+  tempEl.style.color=S.temp>=38.0?'#ff5448':S.temp>=37.5?'#f0a830':'#2ec26a';
+
+  const bpEl=document.getElementById('param-bp');
+  bpEl.textContent=Math.round(S.bpSys)+'/'+Math.round(S.bpDia);
+  bpEl.style.color=S.bpSys<90?'#ff5448':S.bpSys<100?'#f0a830':'#2ec26a';
+
+  const hrEl=document.getElementById('param-hr');
+  hrEl.textContent=Math.round(S.hr);
+  hrEl.style.color=S.hr>100||S.hr<60?'#ff5448':S.hr>90?'#f0a830':'#2ec26a';
+
+  const rrEl=document.getElementById('param-rr');
+  rrEl.textContent=Math.round(S.rr);
+  rrEl.style.color=S.rr>20?'#ff5448':S.rr>16?'#f0a830':'#2ec26a';
+
+  const spo2El=document.getElementById('param-spo2');
+  spo2El.textContent=Math.round(S.spo2);
+  spo2El.style.color=S.spo2<92?'#ff5448':S.spo2<95?'#f0a830':'#2ec26a';
+
+  // Cultures light: activates as soon as urine culture or first abx ordered
+  const cultOk = urineCultureOrderedAt !== null && (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt);
+  if(urineCultureOrderedAt !== null || firstAbxOrderedAt !== null){
+    setLight('cult', cultOk);
+  } else {
+    setLight('cult', null);
+  }
+
+  // Other AMS Dashboard stoplights
+  if(firstAbxOrderedAt === null || activeDrugList.length === 0){
+    // Grey when no antibiotic ever ordered, or MAR is empty (all discontinued)
+    setLight('ind', null); setLight('rev', null); setLight('app', null);
+    setLightAim();
+  } else {
+    const allHaveInd  = activeDrugList.every(e=>e.indication);
+    const allHaveStop = activeDrugList.every(e=>e.stopDate);
+    setLight('ind',  allHaveInd);
+    setLight('rev',  allHaveStop);
+    setLightAim();
+    setLight('app',  getEffectiveness()==='true' && S.breaches.size===0);
+  }
+
+  // Stewardship speedometer
+  const sc=stewardship();
+  updateSpeedo(sc);
+
+  // Life force bar
+  const lf=Math.round(S.lifeForce);
+  document.getElementById('life-fill').style.width=lf+'%';
+  document.getElementById('life-pct').textContent=lf+'%';
+
+}
+
+// ════════════════════════════════════════════
+// TICK
+// ════════════════════════════════════════════
+function tick(){
+  if(gameOver) return;
+  caseHour+=TICK_HOURS;
+
+  // Appropriate stoplight state (used by multiple blocks below)
+  const appOk = getEffectiveness()==='true' && S.breaches.size===0;
+
+  // Temp trends toward normal when appropriate, worsens when not
+  if(appOk){
+    if(S.temp > 36.5) S.temp = Math.max(36.5, S.temp - 0.04);
+  } else {
+    if(S.temp < 38.9) S.temp = Math.min(38.9, S.temp + 0.02);
+  }
+  // BP, HR, RR, SpO2 — deteriorate rapidly when life force critical (<10%)
+  const r = ()=>(Math.random()-0.5);
+  const critical = S.lifeForce < 10;
+  S.bpSys = Math.round(critical
+    ? Math.min(125, Math.max(50,  S.bpSys - 3 + r()*2))   // rapid drop toward shock
+    : Math.min(125, Math.max(95,  S.bpSys     + r()*2)));
+  S.bpDia = Math.round(critical
+    ? Math.min(90,  Math.max(30,  S.bpDia - 2 + r()*1))
+    : Math.min(90,  Math.max(70,  S.bpDia     + r()*1)));
+  S.hr    = Math.round(critical
+    ? Math.min(140, Math.max(60,  S.hr    + 3 + r()*2))   // rapid rise — compensatory tachycardia
+    : Math.min(100, Math.max(60,  S.hr        + r()*2)));
+  S.rr    = Math.round(Math.min(22,  Math.max(14,  S.rr    + r()*1)));
+  S.spo2  = Math.min(100, Math.max(94, S.spo2 + r()*0.5));
+
+  // Update test statuses
+  let testUpdated = false;
+  orderedTestsList.forEach(entry=>{
+    if(entry.status==='pending' && (caseHour - entry.orderedAt) >= entry.hoursToResult){
+      entry.status='available';
+      if(entry.test.name==='Urine culture (MC&S)' && urineCultureAvailableAt===null) urineCultureAvailableAt=caseHour;
+      feed(entry.test.icon+' Result available: <b>'+entry.test.name+'</b>','good');
+      testUpdated=true;
+    }
+  });
+  renderTests();
+
+  // Check for newly expired AIM numbers and alert feed
+  activeDrugList.forEach(e => {
+    if(e.aimNumber && isAimExpired(e.aimNumber) && !notifiedExpiredAims.has(e.aimNumber)){
+      notifiedExpiredAims.add(e.aimNumber);
+      feed('⏰ <b>AIM Expired:</b> AIM# ' + e.aimNumber + ' for <b>' + e.drug.name + '</b> has expired — renew AIM to maintain compliance.', 'bad');
+    }
+  });
+
+  // Life force — driven by Appropriate stoplight
+  // "All done" = appropriate + indication + duration + cultures locked + AIM not needed or documented
+  const _allHaveInd  = activeDrugList.length > 0 && activeDrugList.every(e => e.indication);
+  const _allHaveStop = activeDrugList.length > 0 && activeDrugList.every(e => e.stopDate);
+  const _aimEntries  = activeDrugList.filter(e =>
+    e.drug.tl === 'Red' ||
+    (e.drug.tl === 'Orange' && (caseHour - e.orderedAt) > 48) ||
+    (e.drug.tl === 'Orange' && e.aimNumber)
+  );
+  const _aimApplicable = _aimEntries.length > 0;
+  const _aimOk         = _aimApplicable && _aimEntries.every(e => e.aimNumber && !isAimExpired(e.aimNumber));
+  const _culturesLocked = firstAbxOrderedAt !== null;
+  const _pivot = urineCultureAvailableAt !== null
+    ? urineCultureAvailableAt
+    : (firstAbxOrderedAt !== null ? firstAbxOrderedAt + 24 : Infinity);
+  const _afterPivot = caseHour >= _pivot;
+  const allDone = _afterPivot && appOk && _allHaveInd && _allHaveStop && _culturesLocked && (!_aimApplicable || _aimOk);
+  S.lifeForce += appOk ? (allDone ? 5 : 0.5) : -0.5;
+  S.lifeForce = clamp(S.lifeForce, 0, 100);
+
+  const day=Math.floor(caseHour/24)+1, hr=Math.floor(caseHour%24);
+  document.getElementById('clock').textContent='Day '+day+' · '+String(hr).padStart(2,'0')+'h';
+  const totalDays=Math.floor(caseHour/24);
+  const month=String(Math.floor(totalDays/30)+1).padStart(2,'0');
+  const dayOfMonth=String((totalDays%30)+1).padStart(2,'0');
+  document.getElementById('case-date').textContent=month+'-'+dayOfMonth;
+
+
+  if(S.lifeForce<=0){render();return endGame();}
+  if(S.lifeForce>=100){render();return endGame();}
+  if(caseHour>=240){render();return endGame();}
+  render();
+}
+
+// ════════════════════════════════════════════
+// OUTCOME
+
+function endGame(){
+  gameOver=true; clearInterval(gameInt);
+
+  // ── 1. Cultures before antibiotics (20 pts) ───────────────────────────
+  const cultOk = urineCultureOrderedAt !== null &&
+    (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt);
+
+  // ── 2. Appropriate empiric therapy (20 pts) ───────────────────────────
+  const empiricOk = firstAppropriateEmpiricAt !== null;
+
+  // ── 3. Indication documented (15 pts) ────────────────────────────────
+  const indOk = drugHistory.length > 0 && drugHistory.every(e => e.indication);
+
+  // ── 4. Duration documented (15 pts) ──────────────────────────────────
+  const durOk = drugHistory.length > 0 && drugHistory.every(e => e.stopDate);
+
+  // ── 5. AIM obtained when required (10 pts) ────────────────────────────
+  // Required for any Red drug, and any Orange drug kept longer than 48h
+  // (mirrors the live dashboard). N/A (nothing needed approval) = pass.
+  const aimReqDrugs = drugHistory.filter(e => {
+    if(e.drug.tl==='Red') return true;
+    if(e.drug.tl==='Orange'){
+      const endHr = e.discontinuedAt != null ? e.discontinuedAt : caseHour;
+      return (endHr - e.orderedAt) > 48;
+    }
+    return false;
+  });
+  const aimNA  = drugHistory.length > 0 && aimReqDrugs.length === 0; // N/A only when drugs ordered but none restricted
+  const aimOk  = aimNA || (aimReqDrugs.length > 0 && aimReqDrugs.every(e => e.aimNumber && !isAimExpired(e.aimNumber)));
+
+  // ── 6. Appropriate directed therapy (20 pts) ──────────────────────────
+  // Passes if an appropriate directed agent was ordered after the pivot.
+  // Pivot = culture result time if available, else firstAbxOrderedAt+24.
+  const _deescPivot = urineCultureAvailableAt !== null
+    ? urineCultureAvailableAt
+    : (firstAbxOrderedAt !== null ? firstAbxOrderedAt + 24 : null);
+  const deescOk = _deescPivot !== null && appropriateStepDownAt !== null && appropriateStepDownAt >= _deescPivot;
+
+  // ── Subtotal ──────────────────────────────────────────────────────────
+  const subtotal =
+    (cultOk    ? 20 : 0) +
+    (empiricOk ? 20 : 0) +
+    (indOk     ? 15 : 0) +
+    (durOk     ? 15 : 0) +
+    (aimOk     ? 10 : 0) +
+    (deescOk   ? 20 : 0);
+
+  // ── Safety breach caps total at 40 ───────────────────────────────────
+  const breached = S.breaches.size > 0;
+  const total    = breached ? Math.min(subtotal, 40) : subtotal;
+
+  const scCol = total>=80?'#1f9d57':total>=60?'#c47a12':'#c2362f';
+
+  function rowHTML(label, pts, pass, isNA){
+    const icon    = isNA ? '–' : (pass ? '✓' : '✗');
+    const iconCol = isNA ? '#9aafbf' : (pass ? '#1f9d57' : '#c2362f');
+    const val     = isNA
+      ? `<span style="color:#9aafbf;font-size:11px;">N/A</span>`
+      : `<span style="color:${pass?'#1f9d57':'#c2362f'};font-family:'Courier New',monospace;font-weight:700;">${pass?pts:0}/${pts}</span>`;
+    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;">
+      <div style="font-size:16px;font-weight:900;color:${iconCol};width:18px;text-align:center;flex-shrink:0;">${icon}</div>
+      <div style="flex:1;font-size:12px;color:#2a3a4a;">${label}</div>
+      <div style="text-align:right;">${val}</div>
+    </div>`;
+  }
+
+  const breachRow = breached
+    ? `<div style="margin-top:10px;padding:8px 10px;background:#fdf0f0;border:1px solid #f0c0c0;border-radius:5px;font-size:12px;color:#c2362f;font-weight:600;">
+        ⚠️ Safety breach — score capped at 40
+       </div>`
+    : '';
+
+  document.getElementById('o-grade').innerHTML=`
+    <div style="text-align:center;margin:20px 0 16px;">
+      <div style="font-size:10px;color:#7a90a4;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">AMS Score</div>
+      <div style="font-size:60px;font-weight:900;font-family:'Courier New',monospace;color:${scCol};line-height:1;">${total}</div>
+      <div style="font-size:11px;color:#9aafbf;margin-top:3px;">out of 100</div>
+    </div>
+    <div style="border-top:1px solid #e0eaf0;padding-top:14px;">
+      ${rowHTML('Cultures before antibiotics',    20, cultOk,   false)}
+      ${rowHTML('Appropriate empiric therapy',    20, empiricOk,false)}
+      ${rowHTML('Indication documented',          15, indOk,    false)}
+      ${rowHTML('Duration documented',            15, durOk,    false)}
+      ${rowHTML('AIM obtained when required',     10, aimOk,    aimNA)}
+      ${rowHTML('Appropriate directed therapy',     20, deescOk,  false)}
+      ${breachRow}
+    </div>`;
+  document.getElementById('outcome').className='show';
+}
+
+// ════════════════════════════════════════════
+// LIFECYCLE
+// ════════════════════════════════════════════
+function resetPanel(){
+  activeDrugList=[]; pendingDrug=null; pendingTest=null; selectedIndication=null; selectedDuration=null; urineCultureAvailableAt=null; urineCultureOrderedAt=null; firstAbxOrderedAt=null; editingMAR=null; aminoglycosideFirstUsed=null; notifiedExpiredAims=new Set(); firstAppropriateEmpiricAt=null; appropriateStepDownAt=null; drugHistory=[];
+  // Drug ordering
+  document.getElementById('drug-search').value='';
+  document.getElementById('drug-results').innerHTML='';
+  document.getElementById('drug-results').style.display='none';
+  document.getElementById('pending-drug').innerHTML='';
+  document.getElementById('field-indication').value='';
+  document.getElementById('indication-results').innerHTML='';
+  document.getElementById('indication-results').style.display='none';
+  document.getElementById('pending-indication').innerHTML='';
+  document.getElementById('field-aim').value='';
+  document.getElementById('field-duration').value='';
+  document.getElementById('duration-results').innerHTML='';
+  document.getElementById('duration-results').style.display='none';
+  document.getElementById('pending-duration').innerHTML='';
+  document.getElementById('btn-order').disabled=true;
+  // Test ordering
+  document.getElementById('test-search').value='';
+  document.getElementById('test-results').innerHTML='';
+  document.getElementById('test-results').style.display='none';
+  document.getElementById('pending-test').innerHTML='';
+  document.getElementById('btn-test').disabled=true;
+  // Test panel + result modal
+  document.getElementById('test-panel').style.display='none';
+  document.getElementById('test-list-display').innerHTML='';
+  document.getElementById('result-modal').style.display='none';
+  document.getElementById('result-content').innerHTML='';
+  // MAR
+  document.getElementById('active-inf-list').innerHTML='<div class="inf-empty">No active antimicrobials</div>';
+}
+
+function startGame(){
+  S=freshState(); caseHour=0; gameOver=false; orderedTestsList=[];
+  document.getElementById('feed').innerHTML='';
+  document.getElementById('start').className='';
+  document.getElementById('outcome').className='';
+  document.getElementById('case-date').textContent='01-01';
+  resetPanel();
+  feed('Patient with fever, dysuria, flank pain and impaired consciousness. Possible sepsis with urinary source.','warn');
+  render();
+  gameInt=setInterval(tick,1000);
+}
+
+function restart(){document.getElementById('outcome').className='';startGame();}
+
+// Boot
+S=freshState();
+caseHour=0; gameOver=true; orderedTestsList=[]; activeDrugList=[]; pendingDrug=null;
+render();
+</script>
+</body>
+</html>
