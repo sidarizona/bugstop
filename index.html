@@ -6,27 +6,46 @@
 <title>BUG STOP: AMS Decision Simulator</title>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
+:root{--topbar-h:66px;}
 body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-size:14px;height:100vh;overflow:hidden;}
-#topbar{background:#1a2535;color:#fff;padding:7px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;height:54px;}
+#topbar{background:#1a2535;color:#fff;padding:5px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px;height:var(--topbar-h);}
+.tb-side{flex:1 1 0;min-width:0;}
 .game-title{font-size:17px;font-weight:700;color:#7ecfff;letter-spacing:1px;}
 .game-sub{font-size:12px;color:#f5c842;margin-top:1px;font-weight:700;letter-spacing:1px;}
-#life-wrap{display:flex;flex-direction:column;align-items:stretch;}
-#life-lbl{font-size:10px;color:#ff6b6b;letter-spacing:1px;margin-bottom:3px;font-weight:700;text-align:center;}
-#life-track{width:100%;height:18px;background:#d8e4ec;border:1px solid #b0c4d4;border-radius:8px;overflow:hidden;position:relative;}
-#life-fill{height:100%;width:50%;border-radius:8px;background:linear-gradient(90deg,#ff4444,#ff8c00,#2ec26a);transition:width .5s;}
-#life-pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;font-family:'Courier New',monospace;color:#1a2535;text-shadow:none;}
-/* Speedometer */
-#speedo-wrap{padding:6px 4px 0;text-align:center;}
-#speedo-wrap svg{width:100%;max-width:240px;}
+/* ── METERS ──────────────────────────────────────────────────────────────
+   One shared style for all three. The fill is a SOLID band colour set from
+   the value, not a gradient: a gradient painted onto the fill spans the fill
+   itself, so every value rendered the same red-to-green sweep and the colour
+   carried no information at all. */
+.meter{display:flex;flex-direction:column;align-items:stretch;}
+.meter + .meter{margin-top:9px;}
+.meter-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px;}
+.meter-lbl{font-size:11px;letter-spacing:1px;font-weight:700;}
+.meter-val{font-size:15px;font-weight:700;font-family:'Courier New',monospace;line-height:1;}
+.meter-track{width:100%;height:14px;background:#dfe9f0;border:1px solid #b0c4d4;border-radius:7px;overflow:hidden;}
+.meter-fill{height:100%;border-radius:7px;transition:width .5s,background-color .5s;}
+.meter-sub{font-size:11px;text-align:left;margin-top:3px;letter-spacing:.2px;}
+#life-lbl{color:#c2362f;}
+#ams-lbl{color:#2b7fb8;}
+#micro-lbl{color:#2f7d63;}
 #clock-wrap{text-align:right;}
 #clock-lbl{font-size:10px;color:#5cc08a;letter-spacing:1px;margin-bottom:1px;}
 #clock{font-size:18px;font-weight:700;color:#cfe;font-family:'Courier New',monospace;}
 #clock.urgent{color:#ffb020;animation:blink .8s infinite;}
 #date-lbl{font-size:10px;color:#5cc08a;letter-spacing:1px;margin-bottom:1px;}
 #case-date{font-size:14px;font-weight:700;color:#cfe;font-family:'Courier New',monospace;}
+#timer-wrap{flex:0 0 auto;text-align:center;}
+#timer-lbl{font-size:9px;color:#5cc08a;letter-spacing:2.5px;font-weight:700;line-height:1;}
+#timer{font-size:30px;font-weight:700;color:#cfe;font-family:'Courier New',monospace;line-height:1.1;letter-spacing:1px;}
+#timer.warn{color:#f0a830;}
+#timer.urgent{color:#ff6b6b;animation:blink .8s infinite;}
+#timer-track{width:190px;height:5px;background:#0f1a26;border:1px solid #2a3a4e;border-radius:3px;overflow:hidden;margin:3px auto 0;}
+#timer-fill{height:100%;width:100%;background:#5cc08a;transition:width 1s linear;}
+#timer-fill.warn{background:#f0a830;}
+#timer-fill.urgent{background:#ff6b6b;}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
 
-#layout{display:grid;grid-template-columns:minmax(240px,380px) minmax(0,1fr) minmax(240px,380px);height:calc(100vh - 54px);}
+#layout{display:grid;grid-template-columns:minmax(240px,380px) minmax(0,1fr) minmax(240px,380px);height:calc(100vh - var(--topbar-h));}
 /* Phones: keep all three panels at usable widths, swipe horizontally */
 @media (max-width:760px){
   body{overflow-x:auto;overflow-y:hidden;}
@@ -34,6 +53,14 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 }
 
 /* LEFT — drugs panel */
+/* The figure takes whatever height is left below the ordering forms and scales
+   into it, rather than being pinned to the bottom (margin-top:auto), which
+   collected all the spare space into a gap above it. min-height:0 lets it
+   shrink inside the flex column; the SVG keeps its aspect ratio either way. */
+#patient-figure{flex:1 1 auto;min-height:150px;background:#14202c;border:1px solid #2a3a4e;
+  border-radius:6px;padding:8px 8px 6px;display:flex;flex-direction:column;justify-content:center;}
+#patient-figure svg{width:100%;flex:1 1 auto;min-height:0;display:block;}
+#fig-caption{font-size:10px;text-align:center;letter-spacing:.5px;margin-top:4px;font-family:'Courier New',monospace;color:#6a8aa0;}
 #pumps-panel{background:#1e2c3a;border-right:2px solid #1a2535;overflow-y:auto;padding:8px;display:flex;flex-direction:column;gap:8px;}
 .pumps-hdr{font-size:10px;color:#7ecfff;letter-spacing:2px;text-align:center;padding-bottom:5px;border-bottom:1px solid #3a4a5a;margin-bottom:2px;font-weight:700;}
 .field-lbl{font-size:11px;color:#7ecfff;letter-spacing:1px;font-weight:700;margin-bottom:4px;}
@@ -61,41 +88,64 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 .panel-field::placeholder{color:#4a5a6a;}
 #pending-drug{margin-top:5px;}
 .pending-chip{background:#0d2030;border:1px solid #4a90cc;border-radius:4px;padding:5px 8px;font-size:13px;color:#7ecfff;font-weight:600;}
-.order-btn{width:100%;background:#0d3a1a;border:1px solid #2a7a3a;color:#2ec26a;border-radius:5px;padding:8px;cursor:pointer;font-size:14px;font-weight:700;letter-spacing:1px;margin-top:4px;transition:all .1s;}
-.order-btn:hover:not(:disabled){background:#143a20;border-color:#4aaa5a;}
+.order-btn{width:100%;background:#2ec26a;border:1px solid #48d886;color:#062b14;border-radius:5px;padding:9px;cursor:pointer;font-size:14px;font-weight:800;letter-spacing:1px;margin-top:4px;transition:all .12s;box-shadow:0 0 0 2px rgba(46,194,106,.18);}
+.order-btn:hover:not(:disabled){background:#48d886;border-color:#6ae8a0;box-shadow:0 0 0 3px rgba(46,194,106,.28);}
 .order-btn:active:not(:disabled){transform:scale(.98);}
-.order-btn:disabled{opacity:.3;cursor:default;}
+/* Disabled is flat and grey — clearly "not yet", not a dimmed version of ready. */
+.order-btn:disabled{background:none;border:1px dashed #35506a;color:#4a6a84;cursor:default;box-shadow:none;font-weight:700;}
 .ams-contact-btn{background:#1a2a4a;border:1px solid #3a5a9a;color:#7ecfff;border-radius:5px;padding:5px 8px;cursor:pointer;font-size:11px;font-weight:700;white-space:nowrap;transition:all .1s;}
 .ams-contact-btn:hover{background:#223566;border-color:#5a7aba;}
 .ams-contact-btn:active{transform:scale(.97);}
 .mar-entry{background:#101e2a;border:1px solid #1e3248;border-radius:5px;padding:6px 8px;margin-bottom:5px;}
+/* A prescription missing its indication or duration is marked on the card
+   itself, so the gap is visible where it can be fixed rather than only in the
+   score caption on the other side of the screen. */
+.mar-entry.needs-attention{border-color:#a8632a;box-shadow:inset 3px 0 0 #f0a830;}
 .mar-drug-row{display:flex;align-items:center;gap:6px;margin-bottom:3px;}
 .mar-meta{font-size:11px;color:#6a8aa0;line-height:1.6;margin-bottom:4px;}
 .mar-meta span{color:#8aaccc;}
+.mar-meta span.mar-missing{color:#ff8888;font-weight:700;}
 .disc-btn{width:100%;background:#2a0d0d;border:1px solid #6a2a2a;color:#ff8888;border-radius:3px;padding:3px;cursor:pointer;font-size:11px;font-weight:700;transition:all .1s;}
 .disc-btn:hover{background:#3a1414;border-color:#aa4444;}
 .renew-aim-btn{background:none;border:none;color:#7ecfff;font-size:11px;cursor:pointer;padding:0 2px;vertical-align:middle;opacity:.8;}
 .renew-aim-btn:hover{opacity:1;}
 .mar-aim-btn{width:100%;background:#1a2a4a;border:1px solid #3a5a9a;color:#7ecfff;border-radius:3px;padding:4px;cursor:pointer;font-size:11px;font-weight:700;margin-bottom:4px;transition:all .1s;}
 .mar-aim-btn:hover{background:#223566;border-color:#5a7aba;}
-.mar-edit-btn{margin-left:auto;background:none;border:1px solid #3a5a7a;color:#7ecfff;border-radius:3px;padding:1px 6px;cursor:pointer;font-size:10px;flex-shrink:0;}
+.mar-edit-btn{margin-left:auto;background:#12233a;border:1px solid #3a5a7a;color:#7ecfff;border-radius:4px;padding:5px 12px;cursor:pointer;font-size:12px;font-weight:700;flex-shrink:0;transition:all .1s;}
 .mar-edit-btn:hover{background:#1a2a3a;}
 .mar-edit-form{margin-top:5px;padding-top:5px;border-top:1px solid #1e3248;}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 
 /* CENTER — case */
 #case{background:#f5f8fa;border-right:2px solid #c8d2dc;display:flex;flex-direction:column;overflow:hidden;}
-.case-card{margin:10px;background:#fff;border:1px solid #d3dde6;border-radius:7px;padding:11px 13px;}
-.case-card h3{font-size:13px;color:#5a7488;letter-spacing:1px;margin-bottom:7px;text-transform:uppercase;}
+/* Compact: these details never change during a case, so the card is a single
+   row rather than a heading plus a row of boxes. */
+.case-card{margin:8px 10px 4px;background:#fff;border:1px solid #d3dde6;border-radius:7px;
+  padding:6px 10px;display:flex;align-items:center;gap:10px;}
+.case-card h3{font-size:11px;color:#5a7488;letter-spacing:1px;text-transform:uppercase;
+  white-space:nowrap;flex-shrink:0;margin:0;}
+.case-card .pt-fields{flex:1;}
 .pt-fields{display:flex;flex-direction:column;gap:5px;}
 .pt-row{display:flex;gap:4px;}
-.pt-field{background:#f0f5f8;border:1px solid #d3dde6;border-radius:4px;padding:3px 7px;flex:1;}
-.pt-lbl{font-size:9px;color:#8a9aaa;text-transform:uppercase;letter-spacing:.8px;font-weight:700;margin-bottom:1px;}
-.pt-val{font-size:13px;color:#1a2535;font-weight:600;white-space:nowrap;}
+.pt-field{background:#f0f5f8;border:1px solid #d3dde6;border-radius:4px;padding:2px 7px;flex:1;
+  display:flex;align-items:baseline;gap:5px;}
+.pt-lbl{font-size:9px;color:#8a9aaa;text-transform:uppercase;letter-spacing:.8px;font-weight:700;}
+.pt-val{font-size:12px;color:#1a2535;font-weight:600;white-space:nowrap;}
 .pt-case{background:#fff;border:2px solid #2b8fd6;border-radius:5px;padding:6px 10px;}
 .pt-case .pt-lbl{color:#2b8fd6;}
 .pt-case .pt-val{font-size:13px;font-weight:500;white-space:normal;color:#2a3a4a;line-height:1.5;}
 .feed-hdr{font-size:12px;color:#7a90a4;font-weight:700;letter-spacing:1px;margin:10px 10px 6px;}
+#test-list-display{max-height:136px;overflow-y:auto;padding-right:2px;scrollbar-width:thin;}
+#feed.has-above{
+  -webkit-mask-image:linear-gradient(to bottom,transparent 0,#000 16px);
+  mask-image:linear-gradient(to bottom,transparent 0,#000 16px);}
+/* A soft fade at the foot of the scrolling regions signals there is more
+   below, instead of relying on a hard cut. */
+#test-list-display,#active-inf-list{
+  -webkit-mask-image:linear-gradient(to bottom,#000 calc(100% - 14px),transparent 100%);
+  mask-image:linear-gradient(to bottom,#000 calc(100% - 14px),transparent 100%);}
+#test-list-display:not(.is-scrollable),#active-inf-list:not(.is-scrollable){
+  -webkit-mask-image:none;mask-image:none;}
 #feed{flex:1;overflow-y:auto;padding:0 10px 10px;}
 .fitem{font-size:13px;color:#3a4a58;line-height:1.5;padding:5px 9px;margin-bottom:5px;border-left:3px solid #9fc1de;background:#fff;border-radius:0 4px 4px 0;}
 .fitem.warn{border-left-color:#e9a020;background:#fff8ec;}
@@ -104,9 +154,12 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 .fitem .d{color:#7a90a4;font-weight:700;margin-right:5px;}
 
 /* RIGHT — monitor */
-#mon{background:#0b1116;display:flex;flex-direction:column;overflow-y:auto;padding:9px;}
+/* The whole column used to scroll, so adding drugs pushed the observations and
+   the temperature trend out of view — exactly when you most want to see them.
+   The clock and observations are now fixed and only the MAR list scrolls. */
+#mon{background:#0b1116;display:flex;flex-direction:column;overflow:hidden;padding:9px;}
 .mon-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
-.mon-hdr{font-size:11px;color:#5cc08a;letter-spacing:2px;font-family:'Courier New',monospace;}
+.mon-hdr{font-size:17px;font-weight:700;color:#5cc08a;letter-spacing:2.5px;font-family:'Courier New',monospace;}
 .tl-badge{font-size:12px;font-weight:700;padding:3px 9px;border-radius:4px;border:1px solid;font-family:'Courier New',monospace;}
 .tl-green{color:#2ec26a;border-color:#2ec26a;background:#0d2418;}
 .tl-orange{color:#f0a830;border-color:#f0a830;background:#2a1f0a;}
@@ -116,15 +169,22 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 .bar-lbl .v{font-family:'Courier New',monospace;color:#cfe;}
 .bar-track{height:7px;background:#1a242c;border-radius:4px;overflow:hidden;}
 .bar-fill{height:7px;border-radius:4px;transition:width .5s,background .5s;width:0;}
-.param-grid{display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;gap:5px;margin-bottom:10px;}
+.param-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;}
+/* Temperature trend fills the two cells left free beside ORAL INTAKE. */
+#temp-trend-box{grid-column:span 2;display:flex;flex-direction:column;}
+#temp-spark{width:100%;height:34px;flex:1;margin:2px 0 1px;}
 .param-box{background:#08120c;border:1px solid #1c3a26;border-radius:5px;padding:6px 4px;text-align:center;}
 .param-lbl{font-size:10px;color:#5cc08a;letter-spacing:1px;font-family:'Courier New',monospace;margin-bottom:2px;}
 .param-val{font-size:16px;font-weight:700;font-family:'Courier New',monospace;line-height:1.1;transition:color .5s;}
 .param-unit{font-size:10px;color:#5cc08a;margin-top:1px;}
 .param-ref{font-size:9px;color:#3a5a48;margin-top:2px;}
 
-.active-inf-hdr{font-size:11px;color:#7ecfff;letter-spacing:1px;margin-bottom:5px;font-weight:700;}
-#active-inf-list{margin-bottom:10px;}
+/* MAR heading — same typographic weight as the AMS MONITOR title so the two
+   panel headings read as siblings; keeps its own blue to mark the section. */
+.active-inf-hdr{font-size:17px;font-weight:700;color:#7ecfff;letter-spacing:2.5px;
+  font-family:'Courier New',monospace;margin-bottom:7px;margin-top:2px;}
+#active-inf-list{flex:1 1 auto;min-height:80px;overflow-y:auto;margin-bottom:2px;
+  padding-right:2px;scrollbar-width:thin;}
 .inf-row{display:flex;align-items:center;gap:6px;background:#101e2a;border:1px solid #1e3248;border-radius:4px;padding:4px 8px;margin-bottom:3px;font-size:12px;}
 .inf-dot{width:7px;height:7px;border-radius:50%;animation:pulse 1.5s infinite;flex-shrink:0;}
 .inf-dot.green{background:#2ec26a;} .inf-dot.orange{background:#f0a830;} .inf-dot.red{background:#ff5448;}
@@ -132,17 +192,6 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 .inf-route{color:#6a8aa0;font-size:11px;}
 .inf-empty{font-size:12px;color:#4a5a68;font-style:italic;padding:3px 2px;}
 
-/* Stoplight indicators */
-.sl-row{display:flex;align-items:center;gap:10px;background:#101e2a;border:1px solid #1e3248;border-radius:4px;padding:6px 10px;margin-bottom:5px;}
-.sl-lights{display:flex;flex-direction:column;gap:3px;flex-shrink:0;}
-.sl-red,.sl-green{width:14px;height:14px;border-radius:50%;transition:all .4s;display:flex;align-items:center;justify-content:center;font-size:8px;font-weight:900;line-height:1;}
-.sl-red{background:#2a0a0a;border:1px solid #3a1a1a;}
-.sl-red.on{background:#ff3b30;box-shadow:0 0 7px #ff3b30;}
-.sl-red.on::after{content:'✗';color:#fff;}
-.sl-green{background:#0a1a0a;border:1px solid #1a3a1a;}
-.sl-green.on{background:#2ec26a;box-shadow:0 0 7px #2ec26a;}
-.sl-green.on::after{content:'✓';color:#fff;}
-.sl-label{font-size:12px;color:#bcd;line-height:1.3;}
 
 /* Overlays */
 #start,#outcome{display:none;position:fixed;inset:0;background:rgba(6,10,14,.92);align-items:center;justify-content:center;z-index:99;padding:16px;}
@@ -187,57 +236,127 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 <body>
 
 <div id="topbar">
-  <div>
+  <div class="tb-side">
     <div class="game-title">BUG STOP</div>
     <div class="game-sub">AMS DECISION SIMULATOR</div>
   </div>
-  <button id="end-game-btn" onclick="if(!gameOver) endGame()" style="background:#2a0d0d;border:1px solid #6a2a2a;color:#ff8888;border-radius:5px;padding:5px 14px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">⏹ END CASE</button>
+  <div id="timer-wrap">
+    <div id="timer-lbl">TIME LEFT</div>
+    <div id="timer">5:00</div>
+    <div id="timer-track"><div id="timer-fill"></div></div>
+  </div>
+  <div class="tb-side" style="text-align:right;">
+    <button id="end-game-btn" onclick="if(!gameOver) endGame()" style="background:#2a0d0d;border:1px solid #6a2a2a;color:#ff8888;border-radius:5px;padding:5px 14px;cursor:pointer;font-size:12px;font-weight:700;letter-spacing:1px;">⏹ END CASE</button>
+  </div>
 </div>
 
 <div id="layout">
 
   <!-- LEFT: DRUGS PANEL -->
   <div id="pumps-panel">
-    <div class="pumps-hdr">ORDER DRUGS</div>
-
-    <div>
-      <div class="field-lbl">Antimicrobial</div>
-      <input class="drug-search" id="drug-search" type="text" placeholder="Type to search…" oninput="onDrugSearch()" autocomplete="off">
-      <div id="drug-results"></div>
-      <div id="pending-drug"></div>
-    </div>
-
-    <div>
-      <div class="field-lbl">Indication</div>
-      <input class="drug-search" id="field-indication" type="text" placeholder="Type to search…" oninput="onIndicationSearch()" autocomplete="off">
-      <div id="indication-results"></div>
-      <div id="pending-indication"></div>
-    </div>
-
-    <div>
-      <div class="field-lbl">Duration</div>
-      <input class="drug-search" id="field-duration" type="text" placeholder="e.g. 5 days" oninput="onDurationSearch()" onfocus="onDurationSearch()" autocomplete="off">
-      <div id="duration-results"></div>
-      <div id="pending-duration"></div>
-    </div>
-
-    <div>
-      <div class="field-lbl">AIM Number</div>
-      <div style="display:flex;gap:5px;align-items:center;">
-        <input class="panel-field" id="field-aim" type="text" placeholder="Auto-filled on contact" oninput="onAimInput()" style="flex:1;">
-        <button class="ams-contact-btn" onclick="contactAMS()">📞 Contact AMS</button>
-      </div>
-    </div>
-
-    <button class="order-btn" id="btn-order" onclick="orderDrug()" disabled>✔ ORDER</button>
+    <div class="pumps-hdr">ORDER TESTS</div>
+    <div class="field-lbl">Test</div>
+    <input class="drug-search" id="test-search" type="text" placeholder="Type to search…" oninput="onTestSearch()" autocomplete="off">
+    <div id="test-results"></div>
+    <div id="pending-test"></div>
+    <button class="order-btn" id="btn-test" onclick="orderTest()" disabled style="margin-top:6px;">✔ ORDER</button>
 
     <div style="border-top:1px solid #2a3a4e;margin-top:4px;padding-top:8px;">
-      <div class="pumps-hdr" style="margin-bottom:6px;">ORDER TESTS</div>
-      <div class="field-lbl">Test</div>
-      <input class="drug-search" id="test-search" type="text" placeholder="Type to search…" oninput="onTestSearch()" autocomplete="off">
-      <div id="test-results"></div>
-      <div id="pending-test"></div>
-      <button class="order-btn" id="btn-test" onclick="orderTest()" disabled style="margin-top:6px;">✔ ORDER</button>
+      <div class="pumps-hdr" style="margin-bottom:6px;">ORDER DRUGS</div>
+
+      <div>
+        <div class="field-lbl">Antimicrobial</div>
+        <input class="drug-search" id="drug-search" type="text" placeholder="Type to search…" oninput="onDrugSearch()" autocomplete="off">
+        <div id="drug-results"></div>
+        <div id="pending-drug"></div>
+      </div>
+
+      <div>
+        <div class="field-lbl">Indication</div>
+        <input class="drug-search" id="field-indication" type="text" placeholder="Type to search…" oninput="onIndicationSearch()" autocomplete="off">
+        <div id="indication-results"></div>
+        <div id="pending-indication"></div>
+      </div>
+
+      <div>
+        <div class="field-lbl">Duration</div>
+        <input class="drug-search" id="field-duration" type="text" placeholder="e.g. 5 days" oninput="onDurationSearch()" onfocus="onDurationSearch()" autocomplete="off">
+        <div id="duration-results"></div>
+        <div id="pending-duration"></div>
+      </div>
+
+      <div>
+        <div class="field-lbl">AIM Number</div>
+        <div style="display:flex;gap:5px;align-items:center;">
+          <input class="panel-field" id="field-aim" type="text" placeholder="Auto-filled on contact" oninput="onAimInput()" style="flex:1;">
+          <button class="ams-contact-btn" onclick="contactAMS()">📞 Contact AMS</button>
+        </div>
+      </div>
+
+      <button class="order-btn" id="btn-order" onclick="orderDrug()" disabled>✔ ORDER</button>
+    </div>
+
+    <!-- Reactive patient figure. Every visual element is driven from game
+         state in renderPatientFigure(); nothing here is decorative-only. -->
+    <div id="patient-figure">
+      <svg viewBox="0 0 200 168" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg" aria-label="Patient">
+        <!-- IV pole and bag, shown only while a parenteral agent is running -->
+        <g id="fig-iv" opacity="0">
+          <line x1="186" y1="18" x2="186" y2="128" stroke="#3a5a7a" stroke-width="2.5"/>
+          <rect x="176" y="14" width="20" height="26" rx="3" fill="#9fd8ff" opacity=".9"/>
+          <path d="M186 40 q-18 32 -38 46" stroke="#4a6a8a" stroke-width="1.6" fill="none"/>
+        </g>
+        <!-- headboard -->
+        <rect x="30" y="4" width="140" height="44" rx="8" fill="#1b3348"/>
+        <rect x="38" y="11" width="124" height="6" rx="3" fill="#27506e"/>
+        <!-- mattress -->
+        <rect x="20" y="86" width="160" height="80" rx="12" fill="#2a4d68"/>
+        <!-- pillow -->
+        <ellipse cx="100" cy="56" rx="47" ry="23" fill="#c2d8e8"/>
+        <ellipse cx="100" cy="53" rx="40" ry="18" fill="#e8f2f8"/>
+        <!-- neck -->
+        <rect id="fig-neck" x="90" y="62" width="20" height="20" rx="8" fill="#e8b894"/>
+        <!-- torso in a gown: broad shoulders tapering under the blanket -->
+        <path d="M48 126 Q50 84 100 78 Q150 84 152 126 Z" fill="#d7e6f0"/>
+        <path d="M100 79 q-8 6 -8 13 q8 -4 16 0 q0 -7 -8 -13z" fill="#bccfdd"/>
+        <!-- blanket, tucked across the lower chest -->
+        <rect x="20" y="120" width="160" height="46" rx="10" fill="#35688c"/>
+        <rect x="20" y="120" width="160" height="12" rx="6" fill="#4f8bb2"/>
+        <path d="M82 146 q18 6 36 0" stroke="#2a5674" stroke-width="2.5" fill="none"/>
+        <!-- Arms, each ONE continuous stroke from the shoulder down to the hand,
+             drawn over the blanket. Previously they were split either side of
+             the blanket, so only the part below its edge showed and they read
+             as detached. Starting on the gown, in the gown's own colour, means
+             there is no seam where arm meets shoulder. -->
+        <path d="M63 100 q-8 28 1 48" stroke="#c3d6e5" stroke-width="16" fill="none" stroke-linecap="round"/>
+        <path d="M137 100 q8 28 -1 48" stroke="#c3d6e5" stroke-width="16" fill="none" stroke-linecap="round"/>
+        <!-- sleeve cuffs, so the sleeve visibly ends and the hand begins -->
+        <path d="M57 141 q7 3 14 0" stroke="#aec4d6" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <path d="M129 141 q7 3 14 0" stroke="#aec4d6" stroke-width="3" fill="none" stroke-linecap="round"/>
+        <ellipse id="fig-hand-l" cx="64" cy="153" rx="8.5" ry="7" fill="#e8b894"/>
+        <ellipse id="fig-hand-r" cx="136" cy="153" rx="8.5" ry="7" fill="#e8b894"/>
+        <!-- head -->
+        <circle id="fig-face" cx="100" cy="44" r="26" fill="#e8b894"/>
+        <path d="M74 38 q5 -26 26 -26 q21 0 26 26 q-7 -14 -26 -14 q-19 0 -26 14z" fill="#4a3a33"/>
+        <ellipse id="fig-ear-l" cx="73" cy="47" rx="4.5" ry="7" fill="#e0a882"/>
+        <ellipse id="fig-ear-r" cx="127" cy="47" rx="4.5" ry="7" fill="#e0a882"/>
+        <!-- fever flush -->
+        <ellipse id="fig-cheek-l" cx="85" cy="52" rx="8" ry="5" fill="#e2665a" opacity="0"/>
+        <ellipse id="fig-cheek-r" cx="115" cy="52" rx="8" ry="5" fill="#e2665a" opacity="0"/>
+        <!-- eyes: open and closed pairs, cross-faded by alertness -->
+        <g id="fig-eyes-open" opacity="0">
+          <circle cx="91" cy="43" r="3.2" fill="#2a2622"/>
+          <circle cx="109" cy="43" r="3.2" fill="#2a2622"/>
+        </g>
+        <g id="fig-eyes-closed" opacity="1" stroke="#2a2622" stroke-width="2" fill="none" stroke-linecap="round">
+          <path d="M86 43 q5 4 10 0"/>
+          <path d="M104 43 q5 4 10 0"/>
+        </g>
+        <path id="fig-mouth" d="M92 59 q8 -5 16 0" stroke="#8a4a42" stroke-width="2" fill="none" stroke-linecap="round"/>
+        <!-- sweat -->
+        <path id="fig-sweat" d="M128 30 q4 7 0 10 q-5 -3 0 -10z" fill="#7ecfff" opacity="0"/>
+      </svg>
+      <div id="fig-caption">Obtunded &middot; febrile</div>
     </div>
   </div>
 
@@ -257,16 +376,28 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
     </div>
     <div id="test-panel" style="display:none;margin:6px 10px 0;">
       <div class="feed-hdr" style="margin:0 0 4px;">ORDERED TESTS</div>
+      <!-- Capped: a long list of results would otherwise push the case feed
+           off the bottom of the column as the case goes on. -->
       <div id="test-list-display"></div>
     </div>
     <div style="padding:6px 10px 4px;">
-      <div id="life-wrap">
-        <div id="life-lbl">❤ LIFE FORCE</div>
-        <div id="life-track"><div id="life-fill"></div><div id="life-pct">50%</div></div>
+      <div class="meter">
+        <div class="meter-head"><span class="meter-lbl" id="life-lbl">❤ PATIENT RESPONSE</span><span class="meter-val" id="life-pct">50%</span></div>
+        <div class="meter-track"><div class="meter-fill" id="life-fill"></div></div>
+      </div>
+      <div class="meter">
+        <div class="meter-head"><span class="meter-lbl" id="ams-lbl">🛡️ AMS SCORE</span><span class="meter-val" id="ams-pct">100%</span></div>
+        <div class="meter-track"><div class="meter-fill" id="ams-fill"></div></div>
+        <div class="meter-sub" id="ams-sub">Nothing assessed yet</div>
+      </div>
+      <div class="meter">
+        <div class="meter-head"><span class="meter-lbl" id="micro-lbl">🦠 MICROBIOME HEALTH</span><span class="meter-val" id="micro-pct">100%</span></div>
+        <div class="meter-track"><div class="meter-fill" id="micro-fill"></div></div>
+        <div class="meter-sub" id="micro-sub">Today's spectrum: 0 ASC pts &middot; Cumulative DASC: 0.0</div>
       </div>
     </div>
     <div class="feed-hdr">CASE FEED</div>
-    <div id="feed"></div>
+    <div id="feed" onscroll="updateFeedFade()"></div>
   </div>
 
   <!-- RIGHT: AMS MONITOR -->
@@ -314,45 +445,35 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
         <div class="param-unit">%</div>
         <div class="param-ref">&gt;95</div>
       </div>
+      <div class="param-box">
+        <div class="param-lbl">eGFR</div>
+        <div class="param-val" id="param-egfr">35</div>
+        <div class="param-unit">mL/min</div>
+        <div class="param-ref">&gt;60</div>
+      </div>
+      <div class="param-box">
+        <div class="param-lbl">ORAL INTAKE</div>
+        <div class="param-val" id="param-oral" style="font-size:13px;">NIL</div>
+        <div class="param-unit">&nbsp;</div>
+        <div class="param-ref">for PO switch</div>
+      </div>
+      <div class="param-box" id="temp-trend-box">
+        <div class="param-lbl">TEMP TREND</div>
+        <svg id="temp-spark" viewBox="0 0 100 34" preserveAspectRatio="none" aria-label="Temperature trend">
+          <line id="spark-ref" x1="0" x2="100" stroke="#2a5c3f" stroke-width="1"
+                stroke-dasharray="3 3" vector-effect="non-scaling-stroke"/>
+          <polyline id="spark-line" fill="none" stroke="#2ec26a" stroke-width="2"
+                    stroke-linejoin="round" stroke-linecap="round" vector-effect="non-scaling-stroke" points=""/>
+          <line id="spark-dot" x1="0" y1="0" x2="0" y2="0" stroke="#2ec26a" stroke-width="4"
+                stroke-linecap="round" vector-effect="non-scaling-stroke" opacity="0"/>
+        </svg>
+        <div class="param-ref" id="spark-range">37.5 ref &middot; 36–39&deg;C</div>
+      </div>
     </div>
 
     <div class="active-inf-hdr">MAR</div>
     <div id="active-inf-list"><div class="inf-empty">No active antimicrobials</div></div>
 
-    <div class="active-inf-hdr" style="margin-top:10px;">AMS DASHBOARD</div>
-    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-ind-r"></div><div class="sl-green" id="sl-ind-g"></div></div><div class="sl-label">Indication documented</div></div>
-    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-rev-r"></div><div class="sl-green" id="sl-rev-g"></div></div><div class="sl-label">Duration documented</div></div>
-    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-cult-r"></div><div class="sl-green" id="sl-cult-g"></div></div><div class="sl-label">Cultures before antibiotics</div></div>
-    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-aim-r"></div><div class="sl-green" id="sl-aim-g"></div></div><div class="sl-label">AIM Number documented<span id="aim-countdown" style="display:none;margin-left:6px;font-family:'Courier New',monospace;color:#f0a830;font-size:11px;font-weight:700;"></span></div></div>
-    <div class="sl-row"><div class="sl-lights"><div class="sl-red" id="sl-app-r"></div><div class="sl-green" id="sl-app-g"></div></div><div class="sl-label">Appropriate</div></div>
-
-    <div id="speedo-wrap">
-      <svg viewBox="0 0 200 115" xmlns="http://www.w3.org/2000/svg">
-        <!-- Zone backgrounds -->
-        <path d="M 20 100 A 80 80 0 0 1 59 31"   stroke="#3a0f0f" stroke-width="16" fill="none"/>
-        <path d="M 59 31  A 80 80 0 0 1 139 30"  stroke="#3a2a0a" stroke-width="16" fill="none"/>
-        <path d="M 139 30 A 80 80 0 0 1 180 100" stroke="#0a2a15" stroke-width="16" fill="none"/>
-        <!-- Full dark bg arc on top -->
-        <path d="M 20 100 A 80 80 0 0 1 180 100" stroke="#111d2a" stroke-width="6" fill="none"/>
-        <!-- Value arc -->
-        <path id="speedo-arc" d="" stroke="#ff5448" stroke-width="14" fill="none" stroke-linecap="round"/>
-        <!-- Tick marks -->
-        <line x1="20"  y1="100" x2="27"  y2="100" stroke="#4a6a7a" stroke-width="1.5"/>
-        <line x1="100" y1="20"  x2="100" y2="27"  stroke="#4a6a7a" stroke-width="1.5"/>
-        <line x1="180" y1="100" x2="173" y2="100" stroke="#4a6a7a" stroke-width="1.5"/>
-        <!-- Needle -->
-        <line id="speedo-needle" x1="100" y1="100" x2="27" y2="100" stroke="#ff5448" stroke-width="2.5" stroke-linecap="round"/>
-        <!-- Center hub -->
-        <circle cx="100" cy="100" r="6" fill="#1e2c3a" stroke="#7ecfff" stroke-width="1.5"/>
-        <!-- Score text -->
-        <text id="speedo-val" x="100" y="83" text-anchor="middle" font-size="20" font-weight="700" font-family="Courier New,monospace" fill="#ff5448">10%</text>
-        <text x="100" y="93" text-anchor="middle" font-size="6.5" fill="#5cc08a" font-family="Courier New,monospace" letter-spacing="1.5">STEWARDSHIP</text>
-        <!-- Scale labels -->
-        <text x="18"  y="112" text-anchor="middle" font-size="7.5" fill="#4a6a7a" font-family="Courier New,monospace">0</text>
-        <text x="100" y="38"  text-anchor="middle" font-size="7.5" fill="#4a6a7a" font-family="Courier New,monospace">50</text>
-        <text x="182" y="112" text-anchor="middle" font-size="7.5" fill="#4a6a7a" font-family="Courier New,monospace">100</text>
-      </svg>
-    </div>
   </div>
 </div>
 
@@ -430,140 +551,259 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 // DRUG DATABASE — from abx.xlsx
 // ════════════════════════════════════════════
 const DRUGS = [
-  {name:'Aciclovir',route:'Oral',tl:'Green'},
-  {name:'Aciclovir',route:'IV',tl:'Orange'},
-  {name:'Albendazole',route:'Oral',tl:'Red'},
   {name:'Amikacin',route:'IV',tl:'Red'},
-  {name:'Amoxicillin',route:'Oral',tl:'Green',penicillin:true},
-  {name:'Amoxicillin-clavulanate',route:'Oral',tl:'Green',penicillin:true},
-  {name:'Amoxicillin-clavulanate',route:'IV',tl:'Orange',penicillin:true},
-  {name:'Amphotericin (liposomal)',route:'IV',tl:'Red'},
+  {name:'Amoxicillin',route:'IV',tl:'Green',penicillin:true},
+  {name:'Amoxicillin',route:'PO',tl:'Green',penicillin:true},
+  {name:'Amoxicillin+clavulanate',route:'IV',tl:'Orange',penicillin:true},
+  {name:'Amoxicillin+clavulanate',route:'PO',tl:'Green',penicillin:true},
   {name:'Ampicillin',route:'IV',tl:'Green',penicillin:true},
-  {name:'Anidulafungin',route:'IV',tl:'Red'},
-  {name:'Artemether-lumefantrine',route:'Oral',tl:'Red'},
-  {name:'Artesunate',route:'IV',tl:'Red'},
-  {name:'Atovaquone',route:'Oral',tl:'Orange'},
-  {name:'Atovaquone-proguanil',route:'Oral',tl:'Red'},
-  {name:'Azithromycin',route:'Oral',tl:'Orange'},
-  {name:'Azithromycin',route:'IV',tl:'Red'},
+  {name:'Azithromycin',route:'PO',tl:'Orange'},
   {name:'Aztreonam',route:'IV',tl:'Orange'},
-  {name:'Benzathine benzylpenicillin',route:'IM',tl:'Green',penicillin:true},
   {name:'Benzylpenicillin',route:'IV',tl:'Green',penicillin:true},
-  {name:'Cefaclor',route:'Oral',tl:'Green'},
-  {name:'Cefalexin',route:'Oral',tl:'Green'},
+  {name:'Cefaclor',route:'PO',tl:'Green'},
+  {name:'Cefalexin',route:'PO',tl:'Green'},
   {name:'Cefazolin',route:'IV',tl:'Green'},
   {name:'Cefepime',route:'IV',tl:'Orange'},
   {name:'Cefotaxime',route:'IV',tl:'Orange'},
+  {name:'Cefoxitin',route:'IV',tl:'Orange'},
   {name:'Ceftaroline',route:'IV',tl:'Red'},
   {name:'Ceftazidime',route:'IV',tl:'Orange'},
-  {name:'Ceftazidime-avibactam',route:'IV',tl:'Red'},
-  {name:'Ceftolozane-tazobactam',route:'IV',tl:'Red'},
+  {name:'Ceftazidime+avibactam',route:'IV',tl:'Red'},
+  {name:'Ceftolozane+tazobactam',route:'IV',tl:'Red'},
   {name:'Ceftriaxone',route:'IV',tl:'Orange'},
-  {name:'Cefuroxime',route:'Oral',tl:'Green'},
-  {name:'Cidofovir',route:'IV',tl:'Red'},
-  {name:'Ciprofloxacin',route:'Oral',tl:'Orange'},
+  {name:'Cefuroxime',route:'IV',tl:'Orange'},
+  {name:'Cefuroxime',route:'PO',tl:'Green'},
   {name:'Ciprofloxacin',route:'IV',tl:'Orange'},
-  {name:'Clarithromycin',route:'Oral',tl:'Green'},
-  {name:'Clindamycin',route:'Oral',tl:'Orange'},
+  {name:'Ciprofloxacin',route:'PO',tl:'Orange'},
+  {name:'Clarithromycin',route:'IV',tl:'Orange'},
+  {name:'Clarithromycin',route:'PO',tl:'Green'},
   {name:'Clindamycin',route:'IV',tl:'Orange'},
+  {name:'Clindamycin',route:'PO',tl:'Orange'},
   {name:'Colistin',route:'IV',tl:'Red'},
-  {name:'Colistin',route:'Nebulised',tl:'Red'},
-  {name:'Dapsone',route:'Oral',tl:'Orange'},
   {name:'Daptomycin',route:'IV',tl:'Red'},
-  {name:'Doxycycline',route:'Oral',tl:'Green'},
+  {name:'Dicloxacillin',route:'PO',tl:'Green',penicillin:true},
+  {name:'Doxycycline',route:'PO',tl:'Green'},
   {name:'Ertapenem',route:'IV',tl:'Red'},
-  {name:'Erythromycin',route:'Oral',tl:'Green'},
-  {name:'Famciclovir',route:'Oral',tl:'Green'},
-  {name:'Fidaxomicin',route:'Oral',tl:'Red'},
-  {name:'Flucloxacillin',route:'Oral',tl:'Green',penicillin:true},
+  {name:'Erythromycin',route:'IV',tl:'Orange'},
+  {name:'Erythromycin',route:'PO',tl:'Green'},
   {name:'Flucloxacillin',route:'IV',tl:'Green',penicillin:true},
-  {name:'Fluconazole',route:'Oral',tl:'Orange'},
-  {name:'Fluconazole',route:'IV',tl:'Orange'},
-  {name:'Flucytosine',route:'Oral',tl:'Red'},
-  {name:'Foscarnet',route:'IV',tl:'Red'},
-  {name:'Fosfomycin',route:'Oral',tl:'Orange'},
-  {name:'Ganciclovir',route:'IV',tl:'Red'},
+  {name:'Flucloxacillin',route:'PO',tl:'Green',penicillin:true},
+  {name:'Fosfomycin',route:'PO',tl:'Orange'},
   {name:'Gentamicin',route:'IV',tl:'Orange'},
-  {name:'Griseofulvin',route:'Oral',tl:'Orange'},
-  {name:'Imipenem-cilastatin',route:'IV',tl:'Red'},
-  {name:'Isavuconazole',route:'Oral',tl:'Red'},
-  {name:'Itraconazole',route:'Oral',tl:'Orange'},
-  {name:'Ivermectin',route:'Oral',tl:'Red'},
-  {name:'Letermovir',route:'Oral',tl:'Red'},
-  {name:'Levofloxacin',route:'Oral',tl:'Orange'},
-  {name:'Linezolid',route:'Oral',tl:'Red'},
+  {name:'Imipenem+cilastatin',route:'IV',tl:'Red'},
+  {name:'Levofloxacin',route:'IV',tl:'Orange'},
+  {name:'Levofloxacin',route:'PO',tl:'Orange'},
+  {name:'Lincomycin',route:'IV',tl:'Orange'},
   {name:'Linezolid',route:'IV',tl:'Red'},
-  {name:'Maribavir',route:'Oral',tl:'Red'},
-  {name:'Mebendazole',route:'Oral',tl:'Orange'},
+  {name:'Linezolid',route:'PO',tl:'Red'},
   {name:'Meropenem',route:'IV',tl:'Red'},
-  {name:'Metronidazole',route:'Oral',tl:'Green'},
   {name:'Metronidazole',route:'IV',tl:'Orange'},
-  {name:'Micafungin',route:'IV',tl:'Red'},
-  {name:'Minocycline',route:'Oral',tl:'Green'},
-  {name:'Moxifloxacin',route:'Oral',tl:'Orange'},
+  {name:'Metronidazole',route:'PO',tl:'Green'},
+  {name:'Minocycline',route:'PO',tl:'Green'},
   {name:'Moxifloxacin',route:'IV',tl:'Orange'},
-  {name:'Nirmatrelvir-ritonavir',route:'Oral',tl:'Red'},
-  {name:'Nitrofurantoin',route:'Oral',tl:'Green'},
-  {name:'Norfloxacin',route:'Oral',tl:'Orange'},
-  {name:'Nystatin',route:'Oral',tl:'Green'},
-  {name:'Oseltamivir',route:'Oral',tl:'Green'},
-  {name:'Paromomycin',route:'Oral',tl:'Red'},
-  {name:'Pentamidine',route:'Nebulised',tl:'Orange'},
-  {name:'Pentamidine',route:'IV',tl:'Orange'},
-  {name:'Phenoxymethylpenicillin',route:'Oral',tl:'Green',penicillin:true},
-  {name:'Piperacillin-tazobactam',route:'IV',tl:'Orange',penicillin:true},
-  {name:'Posaconazole',route:'Oral',tl:'Red'},
-  {name:'Posaconazole',route:'IV',tl:'Red'},
-  {name:'Praziquantel',route:'Oral',tl:'Red'},
-  {name:'Primaquine',route:'Oral',tl:'Red'},
-  {name:'Pyrantel',route:'Oral',tl:'Green'},
-  {name:'Pyrimethamine',route:'Oral',tl:'Red'},
-  {name:'Quinine',route:'Oral',tl:'Red'},
-  {name:'Quinine',route:'IV',tl:'Red'},
-  {name:'Remdesivir',route:'IV',tl:'Red'},
-  {name:'Rifampicin',route:'Oral',tl:'Red'},
-  {name:'Rifampicin',route:'IV',tl:'Red'},
-  {name:'Rifaximin',route:'Oral',tl:'Orange'},
-  {name:'Roxithromycin',route:'Oral',tl:'Green'},
-  {name:'Sodium fusidate',route:'Oral',tl:'Red'},
-  {name:'Sulfadiazine',route:'Oral',tl:'Red'},
+  {name:'Moxifloxacin',route:'PO',tl:'Orange'},
+  {name:'Nitrofurantoin',route:'PO',tl:'Green'},
+  {name:'Norfloxacin',route:'PO',tl:'Orange'},
+  {name:'Piperacillin+tazobactam',route:'IV',tl:'Orange',penicillin:true},
+  {name:'Rifampicin',route:'PO',tl:'Red'},
   {name:'Teicoplanin',route:'IV',tl:'Red'},
-  {name:'Terbinafine',route:'Oral',tl:'Orange'},
-  {name:'Tigecycline',route:'IV',tl:'Red'},
+  {name:'Tetracycline',route:'PO',tl:'Green'},
+  {name:'Ticarcillin+clavulanate',route:'IV',tl:'Orange',penicillin:true},
   {name:'Tobramycin',route:'IV',tl:'Orange'},
-  {name:'Tobramycin',route:'Nebulised',tl:'Orange'},
-  {name:'Triclabendazole',route:'Oral',tl:'Red'},
-  {name:'Trimethoprim',route:'Oral',tl:'Green'},
-  {name:'Trimethoprim-sulfamethoxazole',route:'Oral',tl:'Green'},
-  {name:'Trimethoprim-sulfamethoxazole',route:'IV',tl:'Orange'},
-  {name:'Valaciclovir',route:'Oral',tl:'Green'},
-  {name:'Valganciclovir',route:'Oral',tl:'Red'},
-  {name:'Vancomycin',route:'Oral',tl:'Orange'},
+  {name:'Trimethoprim',route:'PO',tl:'Green'},
+  {name:'Trimethoprim+sulfamethoxazole',route:'IV',tl:'Orange'},
+  {name:'Trimethoprim+sulfamethoxazole',route:'PO',tl:'Green'},
   {name:'Vancomycin',route:'IV',tl:'Orange'},
-  {name:'Voriconazole',route:'Oral',tl:'Red'},
-  {name:'Voriconazole',route:'IV',tl:'Red'},
+  {name:'Vancomycin',route:'PO',tl:'Orange'},
 ];
 
-const TICK_HOURS = 0.5;
+// A case runs CASE_LENGTH_HOURS of game time in CASE_LENGTH_SECONDS of real
+// time, one tick per real second — but NOT at a uniform rate.
+//
+// Nearly every decision in this case lives in the first two days: recognise
+// sepsis, start empiric therapy, send a culture, act on the result, switch to
+// oral. Days 3-10 are a patient getting better in bed. A uniform clock spends
+// its real time evenly and so gives the crowded opening only seconds, while
+// the empty tail gets minutes. The weighted clock below spends 60% of the real
+// time on the first two game days and 40% on the remaining eight.
+//
+// Every clinical rate and threshold is expressed per GAME HOUR, so this
+// changes pacing only — six hours is still six hours, and no score moves.
+const HOURS_PER_DAY = 24;
+const CASE_LENGTH_HOURS = 240;          // 10 days
+
+const PHASE1_HOURS   = 48;              // the decision-dense opening
+const PHASE1_SECONDS = 180;
+const PHASE2_HOURS   = CASE_LENGTH_HOURS - PHASE1_HOURS;
+const PHASE2_SECONDS = 120;
+const CASE_LENGTH_SECONDS = PHASE1_SECONDS + PHASE2_SECONDS;   // 300 = 5 minutes
+const PHASE1_RATE = PHASE1_HOURS / PHASE1_SECONDS;   // game hours per tick
+const PHASE2_RATE = PHASE2_HOURS / PHASE2_SECONDS;
+
+// Game hours advanced by a tick beginning at this case hour.
+function tickHours(hour){ return hour < PHASE1_HOURS ? PHASE1_RATE : PHASE2_RATE; }
+
+// Real seconds elapsed by a given case hour — the inverse of the above, used
+// so the countdown is derived from the case clock and cannot drift from it.
+function secondsAtHour(h){
+  return h <= PHASE1_HOURS
+    ? h / PHASE1_RATE
+    : PHASE1_SECONDS + (h - PHASE1_HOURS) / PHASE2_RATE;
+}
+
+// Patient Response, % per game hour. Recovery is faster than deterioration:
+// an effectively treated patient turns around sooner than an untreated one
+// declines, which also keeps a mid-case slip recoverable.
+const LIFE_RISE_PER_HOUR = 2;
+const LIFE_FALL_PER_HOUR = 1;
+// Opening grace. The patient is being assessed and worked up, so the bar does
+// not FALL for the first few game hours — it would otherwise be draining while
+// the player is still searching for their first drug. Grace suppresses decline
+// only: prompt treatment starts the climb immediately, so acting fast still pays.
+const LIFE_GRACE_HOURS = 6;
+
+// IV-to-oral switch readiness (the "O" of the COMS criteria). This patient
+// presented obtunded and septic, so oral absorption cannot be relied on until
+// they have been afebrile and clinically improving for a sustained period.
+// Standard practice is 24-48h of clinical improvement before switching.
+const ORAL_AFEBRILE_HOURS = 24;   // afebrile for this long, and...
+const ORAL_MIN_RESPONSE   = 70;   // ...Patient Response at least this good
+// Temperature, °C per game hour, settling toward normal / drifting toward fever.
+const TEMP_FALL_PER_HOUR = 0.16;
+const TEMP_RISE_PER_HOUR = 0.08;
+// Temperature landmarks, °C.
+const TEMP_PRESENTING = 38.9;   // on arrival, and the ceiling if untreated
+const TEMP_AFEBRILE   = 37.5;   // at or below this counts as afebrile
+const TEMP_NORMAL     = 36.5;   // floor once the infection is controlled
+// Renal function, mL/min, and the range AKI moves within.
+const EGFR_RECOVERED  = 75;
+const EGFR_FLOOR      = 15;
+// Renal function, mL/min per game hour. Sepsis-related AKI recovers on
+// effective therapy (toward 75) and deteriorates without it (toward 15).
+const EGFR_RISE_PER_HOUR = 0.35;
+const EGFR_FALL_PER_HOUR = 0.20;
+// Deterioration of BP and HR per game hour once the patient is critical.
+const CRIT_BP_SYS_PER_HOUR = 12, CRIT_BP_DIA_PER_HOUR = 8, CRIT_HR_PER_HOUR = 12;
+
+// ════════════════════════════════════════════
+// ANTIBIOTIC SPECTRUM COVERAGE (ASC) SCORES
+// Kakiuchi et al, Clin Infect Dis 2022;75(4):567-76 — "Days of Antibiotic
+// Spectrum Coverage (DASC)". ASC = number of the 16 organism categories an
+// agent covers (range 2–15). DASC = cumulative sum of the ASC scores of all
+// antibiotics given, accrued per day of therapy.
+// Keys are the drug names used in this game; where the paper uses a different
+// name the paper's agent is noted. Agents marked (est) are not in the paper's
+// 77-agent table and are assigned by closest class analogue.
+// Non-antibacterials (antifungals, antivirals, antiparasitics) score 0 —
+// they do not carry an antibacterial spectrum.
+// ════════════════════════════════════════════
+const ASC_SCORES = {
+  // Aminoglycosides
+  'amikacin':8, 'gentamicin':9, 'tobramycin':9,
+  // Beta-lactam / beta-lactamase inhibitor combinations
+  'amoxicillin+clavulanate':7, 'piperacillin+tazobactam':11, 'ticarcillin+clavulanate':10,
+  'ceftazidime+avibactam':8, 'ceftolozane+tazobactam':8,
+  // Carbapenems
+  'ertapenem':9, 'imipenem+cilastatin':12, 'meropenem':12,
+  // Cephalosporins  (cefalexin = paper's cephalexin)
+  'cefazolin':3, 'cefalexin':3, 'cefaclor':4, 'cefuroxime':4,
+  'cefotaxime':6, 'cefoxitin':6, 'ceftazidime':6, 'ceftriaxone':6,
+  'ceftaroline':7, 'cefepime':8,
+  // Fluoroquinolones
+  'ciprofloxacin':9, 'norfloxacin':9, 'levofloxacin':12, 'moxifloxacin':13,
+  // Folate antagonists  (paper: sulfamethoxazole-trimethoprim)
+  'trimethoprim+sulfamethoxazole':7,
+  'trimethoprim':5,               // (est) narrower than the combination
+  // Fosfomycin / nitrofurantoin
+  'fosfomycin':8, 'nitrofurantoin':7,
+  // Glycopeptides & lipopeptides
+  'vancomycin':5, 'daptomycin':6,
+  'teicoplanin':5,                // (est) vancomycin analogue
+  // Tetracyclines
+  'doxycycline':7, 'tetracycline':7, 'minocycline':8,
+  // Macrolides & lincosamides
+  'erythromycin':3, 'clarithromycin':5, 'azithromycin':6, 'clindamycin':6,
+  'lincomycin':6,                 // (est) clindamycin analogue
+  // Monobactam
+  'aztreonam':4,
+  // Nitroimidazole
+  'metronidazole':2,
+  // Oxazolidinone
+  'linezolid':6,
+  // Penicillins  (paper: "Penicillin G, V"; anti-staphylococcal group = 2)
+  'benzylpenicillin':3, 'dicloxacillin':2, 'flucloxacillin':2,
+  'amoxicillin':5, 'ampicillin':5,
+  // Polymyxin  (paper: colistimethate)
+  'colistin':6,
+  // Rifamycin  (paper: rifampin)
+  'rifampicin':5,
+};
+
+// ASC score for a drug (0 for non-antibacterials).
+function ascScore(drug){
+  return ASC_SCORES[drug.name.toLowerCase()] || 0;
+}
+
+// Sum of ASC scores of all currently active antibiotics = today's ASC/day rate.
+function currentAscPerDay(){
+  return activeDrugList.reduce((sum,e)=>sum+ascScore(e.drug),0);
+}
+
+// Microbiome Health from cumulative DASC — exponential decay, no recovery.
+// 100% at DASC 0; ~64% after 3 days of a narrow agent; ~22% after 5 days of meropenem.
+const DASC_DECAY_CONSTANT = 40;
+function microbiomeHealth(){
+  return 100 * Math.exp(-(S.dasc||0) / DASC_DECAY_CONSTANT);
+}
 
 let S, caseHour, gameInt, gameOver, orderedTestsList, selectedIndication, selectedDuration;
-let activeDrugList = []; // array of drug objects currently active
-let editingMAR = null; // index of MAR entry currently being edited
-let notifiedExpiredAims = new Set(); // AIM numbers already announced as expired
-let urineCultureAvailableAt  = null; // game-hour when urine culture result becomes available
-let urineCultureOrderedAt   = null; // game-hour when urine culture was ordered
-let firstAbxOrderedAt       = null; // game-hour when the first antibiotic was ordered
-let aminoglycosideFirstUsed = null; // game-hour when gentamicin/tobramycin IV was first ever ordered
-let firstAppropriateEmpiricAt = null; // hour when first appropriate empiric abx was ordered
-let appropriateStepDownAt     = null; // hour when first appropriate step-down abx ordered after pivot
-let drugHistory               = [];   // all drugs ever ordered (shared refs with activeDrugList entries)
+// ── CASE-SCOPED STATE ────────────────────────────────────────────────────
+// Everything below lasts exactly one case. Declared and cleared together in
+// resetCaseState() so adding a tracker cannot leave a stale value behind for
+// the next case — the failure mode this file is structurally prone to.
+let activeDrugList,            // drugs currently on the MAR
+    drugHistory,               // every drug ever ordered (shares entry objects with the MAR)
+    editingMAR,                // index of the MAR entry being edited, or null
+    notifiedExpiredAims,       // AIM numbers already announced as expired
+    urineCultureOrderedAt,     // hour the urine culture was ordered
+    urineCultureAvailableAt,   // hour its result landed
+    firstAbxOrderedAt,         // hour the first antimicrobial was ordered
+    firstCoveredAt,            // hour the patient was first actually covered (door-to-antibiotic)
+    aminoglycosideFirstUsed,   // hour an IV aminoglycoside was first used
+    firstAppropriateEmpiricAt, // hour of the first appropriate empiric agent
+    appropriateStepDownAt,     // hour of the first appropriate directed agent after the pivot
+    firstOralReadyAt,          // hour the patient first became able to take oral
+    firstOralSwitchAt,         // hour an oral covering agent was first running while tolerated
+    noCultureNudged,           // one-time prompt: review point passed with no culture sent
+    graceWarned;               // one-time prompt: opening grace closed with nothing running
+
+function resetCaseState(){
+  activeDrugList = [];
+  drugHistory = [];
+  editingMAR = null;
+  notifiedExpiredAims = new Set();
+  urineCultureOrderedAt = urineCultureAvailableAt = null;
+  firstAbxOrderedAt = firstCoveredAt = aminoglycosideFirstUsed = null;
+  firstAppropriateEmpiricAt = appropriateStepDownAt = null;
+  firstOralReadyAt = firstOralSwitchAt = null;
+  noCultureNudged = graceWarned = false;
+}
+resetCaseState();
 
 function freshState(){
   return {
     breaches:new Set(),
-    temp:38.9, bpSys:109, bpDia:82, hr:87, rr:18, spo2:96,
+    temp:TEMP_PRESENTING, bpSys:109, bpDia:82, hr:87, rr:18, spo2:96, egfr:35,
     aimNumber:'',
-    lifeForce:50
+    lifeForce:50,
+    dasc:0,
+    courseHours:0,        // cumulative hours of covering therapy
+    infectionCleared:false,
+    tempHistory:[],       // {h,t} samples, one per game hour, for the trend
+    lastTempSample:-1,    // case hour of the most recent sample
+    afebrileHours:0,      // consecutive game hours with temp < 37.5
+    oralTolerated:false,  // can the patient absorb oral antimicrobials?
+    therapyHours:0        // cumulative hours with any antimicrobial on the MAR
   };
 }
 
@@ -612,19 +852,24 @@ function orderDrug(){
   }
 
   // Sulfa allergy breach — trimethoprim and sulfonamides are contraindicated
-  const isSulfa = d.name.toLowerCase().includes('trimethoprim') || d.name.toLowerCase().includes('sulfamethoxazole');
+  const isSulfa = d.name.toLowerCase().includes('sulfamethoxazole') || d.name.toLowerCase().includes('sulfadiazine');
   if(isSulfa && !S.breaches.has('sulfa-allergy')){
     S.breaches.add('sulfa-allergy');
     feed('⚠️ <b>SAFETY BREACH:</b> '+d.name+' contains a sulfonamide — patient has documented <b>sulfa allergy (Anaphylaxis)</b>. Contraindicated.','bad');
+  }
+
+  // Nitrofurantoin — reported susceptible, but wrong drug for this infection.
+  // Not a safety breach (no allergy/contraindication to the patient's documented
+  // allergies), so it does not cap the score — it is simply scored inappropriate.
+  if(d.name.toLowerCase().includes('nitrofurantoin')){
+    feed('⚠️ <b>Wrong site of action:</b> Nitrofurantoin is reported <b>S</b>, but it only reaches therapeutic concentrations in <i>urine</i> — it does not treat pyelonephritis or urosepsis. It is also contraindicated at this patient\'s <b>eGFR 35 mL/min</b>.','bad');
   }
 
   if(firstAbxOrderedAt === null) firstAbxOrderedAt = caseHour;
   if(isAminoglycosideIV(d) && aminoglycosideFirstUsed === null) aminoglycosideFirstUsed = caseHour;
 
   // Track first appropriate empiric and step-down timings
-  const _computedPivot = urineCultureAvailableAt !== null
-    ? urineCultureAvailableAt : firstAbxOrderedAt + 24;
-  const _isBeforePivot = caseHour < _computedPivot;
+  const _isBeforePivot = caseHour < pivotHour();
   if(evaluateDrug(d, caseHour) === 'true'){
     if(_isBeforePivot  && firstAppropriateEmpiricAt === null) firstAppropriateEmpiricAt = caseHour;
     if(!_isBeforePivot && appropriateStepDownAt     === null) appropriateStepDownAt     = caseHour;
@@ -669,6 +914,15 @@ function discontinueDrug(idx){
 // ════════════════════════════════════════════
 // TEST DATABASE
 // ════════════════════════════════════════════
+// Turnaround times, and the one test the whole case pivots on.
+const URINE_CULTURE = 'Urine culture (MC&S)';
+const CULTURE_TURNAROUND_HOURS = 24;
+const LAB_TURNAROUND_HOURS     = 2;
+// A first aminoglycoside dose is approved for this long, and is only
+// appropriate within it; other restricted approvals last AIM_VALIDITY_HOURS.
+const AMINOGLYCOSIDE_WINDOW_HOURS = 24;
+const AIM_VALIDITY_HOURS          = 48;
+
 const TESTS = [
   // Cultures
   {name:'Blood culture',          cat:'Culture',    icon:'🧫'},
@@ -752,10 +1006,10 @@ function selectPendingTest(idx){
 function orderTest(){
   if(!pendingTest) return;
   const isCulture = pendingTest.cat==='Culture';
-  const hoursToResult = isCulture ? 24 : 2;
-  if(pendingTest.name==='Urine culture (MC&S)' && urineCultureOrderedAt===null) urineCultureOrderedAt=caseHour;
+  const hoursToResult = isCulture ? CULTURE_TURNAROUND_HOURS : LAB_TURNAROUND_HOURS;
+  if(pendingTest.name===URINE_CULTURE && urineCultureOrderedAt===null) urineCultureOrderedAt=caseHour;
   orderedTestsList.push({test:pendingTest, orderedAt:caseHour, hoursToResult, status:'pending'});
-  feed(pendingTest.icon+' Ordered: <b>'+pendingTest.name+'</b> — result in ~'+(isCulture?'24–48 hours (culture)':hoursToResult+' hours')+'.','good');
+  feed(pendingTest.icon+' Ordered: <b>'+pendingTest.name+'</b> — result in '+hoursToResult+' hours'+(isCulture?' (culture)':'')+'.','good');
   pendingTest=null;
   document.getElementById('test-search').value='';
   document.getElementById('pending-test').innerHTML='';
@@ -867,7 +1121,6 @@ function getTestResultHTML(name){
         <tr><td style="padding:2px 6px;">WBC</td><td style="padding:2px 6px;${hi}">&gt;100 cells/µL &uarr;</td><td style="padding:2px 6px;color:#aaa;">Ref: &lt;5</td></tr>
         <tr><td style="padding:2px 6px;">RBC</td><td style="padding:2px 6px;${hi}">25 cells/µL &uarr;</td><td style="padding:2px 6px;color:#aaa;">Ref: &lt;5</td></tr>
         <tr><td style="padding:2px 6px;">Bacteria</td><td style="padding:2px 6px;${hi}">Many gram-negative rods</td><td></td></tr>
-        <tr><td style="padding:2px 6px;">Nitrites</td><td style="padding:2px 6px;${hi}">Positive</td><td></td></tr>
       </table>
       <p style="margin:6px 0;font-size:12px;"><b>CULTURE</b></p>
       <div style="font-size:12px;background:#f0fff4;border:1px solid #2ec26a;border-radius:5px;padding:8px 10px;margin-bottom:8px;">
@@ -877,16 +1130,9 @@ function getTestResultHTML(name){
       <table style="font-size:12px;width:100%;border-collapse:collapse;">
         <tr style="background:#f5f5f5;font-weight:700;"><td style="padding:4px 6px;">Antibiotic</td><td style="padding:4px 6px;text-align:center;">Result</td></tr>
         ${abxRow('Amoxicillin',R)}
-        ${abxRow('Amoxicillin-clavulanate',S_)}
         ${abxRow('Cefalexin',S_)}
-        ${abxRow('Cefazolin',S_)}
-        ${abxRow('Ceftriaxone',S_)}
-        ${abxRow('Gentamicin',S_)}
         ${abxRow('Trimethoprim',S_)}
-        ${abxRow('Trimethoprim-sulfamethoxazole',S_)}
-        ${abxRow('Ciprofloxacin',S_)}
         ${abxRow('Nitrofurantoin',S_)}
-        ${abxRow('Meropenem',S_)}
       </table></div>`,
 
     'Blood culture': hdr('MICROBIOLOGY — BLOOD CULTURE','2 sets collected &nbsp;|&nbsp; Status: FINAL — 5 days incubation')+
@@ -951,8 +1197,8 @@ function getTestResultHTML(name){
         <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Sodium</td><td style="padding:3px 6px;">136 mmol/L</td><td style="padding:3px 6px;color:#aaa;">135–145</td></tr>
         <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Potassium</td><td style="padding:3px 6px;">3.8 mmol/L</td><td style="padding:3px 6px;color:#aaa;">3.5–5.0</td></tr>
         <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Urea</td><td style="padding:3px 6px;${hi}">12.4 mmol/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">2.5–7.5</td></tr>
-        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Creatinine</td><td style="padding:3px 6px;${hi}">148 µmol/L &uarr;</td><td style="padding:3px 6px;color:#aaa;">45–90</td></tr>
-        <tr><td style="padding:3px 6px;">eGFR</td><td style="padding:3px 6px;${hi}">35 mL/min &darr;</td><td style="padding:3px 6px;color:#aaa;">&gt;60</td></tr>
+        <tr style="border-bottom:1px solid #eee;"><td style="padding:3px 6px;">Creatinine</td><td style="padding:3px 6px;${S.egfr<60?hi:''}">${Math.round(4400/Math.max(S.egfr,1))} µmol/L${S.egfr<60?' &uarr;':''}</td><td style="padding:3px 6px;color:#aaa;">45–90</td></tr>
+        <tr><td style="padding:3px 6px;">eGFR</td><td style="padding:3px 6px;${S.egfr<60?hi:''}">${Math.round(S.egfr)} mL/min${S.egfr<60?' &darr;':''}</td><td style="padding:3px 6px;color:#aaa;">&gt;60</td></tr>
       </table></div>`,
 
     'Liver function tests (LFT)': hdr('BIOCHEMISTRY — LIVER FUNCTION TESTS','Status: FINAL')+
@@ -1076,6 +1322,15 @@ function feed(text,cls){
   d.innerHTML='<span class="d">'+dayStr(caseHour)+'</span>'+text;
   f.appendChild(d);
   f.scrollTop = f.scrollHeight;
+  updateFeedFade();
+}
+
+// Fade the top edge of the feed only while there is history scrolled above it,
+// so the half-row the auto-scroll leaves at the top reads as "more above"
+// rather than as a clipped row. Called on scroll as well as on new entries.
+function updateFeedFade(){
+  const f = document.getElementById('feed');
+  if(f && f.classList) f.classList.toggle('has-above', f.scrollTop > 2);
 }
 
 // ════════════════════════════════════════════
@@ -1085,6 +1340,35 @@ function clamp(v,lo,hi){return Math.max(lo,Math.min(hi,v));}
 
 // Single source of truth for drug appropriateness.
 // atHour = the hour the drug was (or would be) ordered; used to anchor the pivot when no culture taken.
+// ════════════════════════════════════════════
+// THE PIVOT
+// The hour at which empiric therapy should give way to culture-directed
+// therapy. Single source of truth — evaluateDrug, orderDrug, tick and
+// endGame all call this, so they can never disagree.
+//
+// Rule: the pivot must never fall before the player could actually hold a
+// result in their hands. So:
+//   • culture resulted        -> pivot at the moment it resulted
+//   • culture ordered, pending -> pivot when it is due (never earlier)
+//   • no culture ordered       -> no pivot; empiric therapy stays correct.
+//     The player still loses the "cultures before antibiotics" points and
+//     the directed-therapy points, but is not asked to de-escalate blind.
+//   • no antibiotic yet        -> no pivot.
+// Returns Infinity when there is no pivot, so `caseHour < pivotHour()` is
+// always a safe "still in the empiric phase" test.
+// ════════════════════════════════════════════
+function pivotHour(){
+  if(urineCultureAvailableAt !== null) return urineCultureAvailableAt;
+  if(firstAbxOrderedAt === null) return Infinity;
+  // A pending culture pushes the pivot out to when that result is due.
+  const pending = orderedTestsList.find(e =>
+    e.test.name === URINE_CULTURE && e.status === 'pending');
+  if(pending) return Math.max(firstAbxOrderedAt + CULTURE_TURNAROUND_HOURS,
+                              pending.orderedAt + pending.hoursToResult);
+  if(urineCultureOrderedAt !== null) return urineCultureOrderedAt + CULTURE_TURNAROUND_HOURS;
+  return Infinity; // no culture ever ordered — never demand a blind de-escalation
+}
+
 function evaluateDrug(drug, atHour){
   const name  = drug.name.toLowerCase();
   const route = drug.route.toLowerCase();
@@ -1092,22 +1376,117 @@ function evaluateDrug(drug, atHour){
   // Aminoglycosides: appropriate only within 24h of first-ever use this case
   if(isAminoglycosideIV(drug)){
     const firstUsed = aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : atHour;
-    return (caseHour - firstUsed) < 24 ? 'true' : 'false';
+    return (caseHour - firstUsed) < AMINOGLYCOSIDE_WINDOW_HOURS ? 'true' : 'false';
   }
 
-  // Pivot: culture result time, or 24h from first antibiotic (anchored — not reset on reorder)
-  const pivotHour = urineCultureAvailableAt !== null
-    ? urineCultureAvailableAt
-    : (firstAbxOrderedAt !== null ? firstAbxOrderedAt : atHour) + 24;
-
-  if(caseHour < pivotHour){
+  if(caseHour < pivotHour()){
     return name.includes('ceftriaxone') ? 'true' : 'false';
   }
 
-  // After pivot: step-down agents (trimethoprim/TMP-SMX excluded — sulfa allergy)
+  // After pivot: directed therapy guided by the urine culture susceptibilities.
+  // E. coli reported S to cefalexin, trimethoprim and nitrofurantoin; R to amoxicillin.
+  //  - cefazolin (IV) and cefalexin (oral) — narrow, appropriate step-down.
+  //  - trimethoprim (oral) — susceptible and a guideline oral option for upper UTI.
+  //    Exact-match only, so trimethoprim-sulfamethoxazole is NOT accepted here
+  //    (sulfonamide — this patient has a documented sulfa anaphylaxis).
+  //  - nitrofurantoin is deliberately NOT accepted: susceptible on the panel, but it
+  //    only concentrates in urine and does not treat pyelonephritis/urosepsis, and is
+  //    contraindicated at this patient's eGFR of 35. See the warning in orderDrug().
+  // Cefazolin IV is the narrow directed option while the patient is still
+  // IV-dependent; the oral agents only become appropriate once they can
+  // actually be absorbed (see ORAL_AFEBRILE_HOURS).
   if(name.includes('cefazolin')) return 'true';
-  if(name.includes('cefalexin') && route.includes('oral')) return 'true';
+  if((name.includes('cefalexin') || name === 'trimethoprim') && route === 'po')
+    return S.oralTolerated ? 'true' : 'false';
   return 'false';
+}
+
+// ════════════════════════════════════════════
+// ORGANISM COVERAGE — drives the Patient Response bar
+// The patient improves on ANY antibiotic that covers the infecting organism
+// and reaches the site of infection — whether that is the ideal narrow choice
+// (cefalexin) or needlessly broad (meropenem). Breadth costs AMS Score and
+// Microbiome Health, never the patient's recovery. That separation is the
+// whole teaching point: the wrong-but-effective drug still cures this patient.
+//
+// Organism: E. coli, upper urinary tract with bacteraemia.
+// Reported: amoxicillin R; cefalexin, trimethoprim, nitrofurantoin S.
+//
+// Deliberately EXCLUDED despite in-vitro activity, because they do not reach
+// the upper tract or bloodstream at therapeutic levels:
+//   nitrofurantoin, oral fosfomycin, norfloxacin — urinary-only agents
+//   tigecycline — inadequate serum and urinary concentrations
+// Also excluded: amoxicillin and ampicillin (reported R).
+// ════════════════════════════════════════════
+const COVERS_ORGANISM = new Set([
+  // Cephalosporins  (cefoxitin is a cephamycin — still covers E. coli)
+  'cefalexin','cefaclor','cefazolin','cefuroxime','cefotaxime','cefoxitin',
+  'ceftriaxone','ceftazidime','ceftaroline','cefepime',
+  // Carbapenems
+  'ertapenem','meropenem','imipenem+cilastatin',
+  // Beta-lactam / beta-lactamase inhibitor combinations
+  'amoxicillin+clavulanate','piperacillin+tazobactam','ticarcillin+clavulanate',
+  'ceftazidime+avibactam','ceftolozane+tazobactam',
+  // Aminoglycosides
+  'gentamicin','tobramycin','amikacin',
+  // Fluoroquinolones reaching renal tissue (norfloxacin excluded — urinary only)
+  'ciprofloxacin','levofloxacin','moxifloxacin',
+  // Monobactam
+  'aztreonam',
+  // Folate antagonists — reported S and reaching renal tissue. TMP-SMX covers
+  // the organism too, but is a safety breach here, which overrides coverage.
+  'trimethoprim','trimethoprim+sulfamethoxazole',
+  // Systemic only — see URINARY_ONLY_ORAL below
+  'fosfomycin',
+  // Last-line gram-negative
+  'colistin',
+]);
+
+// Agents that cover the organism given systemically, but by mouth reach
+// therapeutic levels only in urine — so they do not treat this upper-tract
+// infection. Oral fosfomycin (trometamol) is a single-dose cystitis agent.
+const URINARY_ONLY_ORAL = new Set(['fosfomycin']);
+
+// A full course for bacteraemic pyelonephritis. Until the patient has had this
+// much covering therapy, stopping early causes relapse and the bar falls again.
+// Once completed the infection is cleared and the bar holds, so continuing
+// antibiotics beyond this point buys nothing clinically — it only costs DASC.
+const ADEQUATE_COURSE_DAYS = 7;
+
+
+// A restricted (Red) agent always needs an approval number; a monitored
+// (Orange) agent needs one once it has run beyond the review window.
+const AIM_ORANGE_REVIEW_HOURS = 48;
+
+function aimRequiredFor(entry, atHour){
+  if(entry.drug.tl === 'Red') return true;
+  if(entry.drug.tl !== 'Orange') return false;
+  const endHr = entry.discontinuedAt != null ? entry.discontinuedAt : atHour;
+  return (endHr - entry.orderedAt) > AIM_ORANGE_REVIEW_HOURS;
+}
+
+function isOralRoute(drug){ return drug.route.toUpperCase() === 'PO'; }
+
+// Does this drug actually reach the patient? An oral agent is only absorbed
+// if the patient can take and absorb it — in an obtunded, septic, vomiting
+// patient it cannot be relied on, however good the in-vitro activity.
+function drugReachesPatient(drug){
+  return !isOralRoute(drug) || S.oralTolerated;
+}
+
+function coversOrganism(drug){
+  const name = drug.name.toLowerCase();
+  if(!COVERS_ORGANISM.has(name)) return false;
+  if(URINARY_ONLY_ORAL.has(name) && isOralRoute(drug)) return false;
+  return true;
+}
+
+// Is the patient currently being treated effectively?
+// Any covering agent on the MAR is enough — combinations count, and being
+// too broad is not penalised here. A safety breach overrides everything.
+function patientCovered(){
+  if(S.breaches.size > 0) return false;
+  return activeDrugList.some(e => coversOrganism(e.drug) && drugReachesPatient(e.drug));
 }
 
 function getEffectiveness(){
@@ -1117,30 +1496,170 @@ function getEffectiveness(){
   return evaluateDrug(e.drug, e.orderedAt || 0);
 }
 
+// ════════════════════════════════════════════
+// AMS CRITERIA — single source of truth
+// Nine criteria across the antimicrobial lifecycle, mirroring how stewardship
+// is actually assessed (start well, review at the result, stop on time, and
+// document). The same list drives the live AMS Score bar and the end-of-case
+// grade, so the two can never tell the player different stories.
+//
+// Each item carries:
+//   available — can this be judged yet? The live bar scores only what is in
+//               play so far; the final grade scores all nine out of 100.
+//   frac      — 0..1 partial credit. Timing criteria slide with delay rather
+//               than passing or failing outright, because in stewardship
+//               "when" matters as much as "whether".
+// All items read drugHistory (every drug ever ordered), not just the active
+// MAR, so discontinuing a drug never hides it.
+// ════════════════════════════════════════════
 
-function stewardship(){
-  const allHaveInd  = activeDrugList.length>0 && activeDrugList.every(e=>e.indication);
-  const allHaveStop = activeDrugList.length>0 && activeDrugList.every(e=>e.stopDate);
-  const cultOk      = urineCultureOrderedAt !== null && (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt);
-  const appOk       = getEffectiveness()==='true' && S.breaches.size===0;
-  const activeAimEntries = activeDrugList.filter(e=>
-    e.drug.tl==='Red' ||
-    (e.drug.tl==='Orange' && (caseHour-e.orderedAt)>48) ||
-    (e.drug.tl==='Orange' && e.aimNumber)
-  );
-  const aimApplicable = activeAimEntries.length > 0;
-  const aimOk = aimApplicable && activeAimEntries.every(e=>e.aimNumber && !isAimExpired(e.aimNumber));
-  // Weights depend on whether AIM is applicable
-  const indWeight  = aimApplicable ? 10 : 15;
-  const stopWeight = aimApplicable ? 10 : 15;
-  let score = 0;
-  if(appOk)       score += 50;
-  if(allHaveInd)  score += indWeight;
-  if(allHaveStop) score += stopWeight;
-  if(cultOk)      score += 20;
-  if(aimOk)       score += 10;
-  return score;
+// Timing windows, in game hours: full marks up to `full`, zero at `zero`.
+const DOOR_FULL_H   = 6,  DOOR_ZERO_H   = 24;  // door-to-effective-antibiotic
+const DEESC_FULL_H  = 12, DEESC_ZERO_H  = 48;  // de-escalation after the result
+const SWITCH_FULL_H = 12, SWITCH_ZERO_H = 48;  // IV to oral after readiness
+// Acceptable total course length, in days, around ADEQUATE_COURSE_DAYS.
+// The lifecycle phases, in the order they are shown.
+const AMS_PHASES = ['Start','Review','Stop','Governance'];
+// A safety breach caps the score here, live and final.
+const BREACH_SCORE_CAP = 40;
+
+const COURSE_GRACE_DAYS = 1;   // within a day either way is full marks
+const COURSE_ZERO_DAYS  = 3;   // this far beyond the window scores nothing
+
+const clamp01 = x => clamp(x, 0, 1);
+// 1 while delay <= full, sliding linearly to 0 at zero.
+const slide = (delay, full, zero) => clamp01((zero - delay) / (zero - full));
+
+function amsCriteria(){
+  const pivot    = pivotHour();
+  const anyDrugs = drugHistory.length > 0;
+
+  // Directed therapy becomes judgeable at the pivot. With no culture ever sent
+  // the pivot never arrives, so fall back to the 48h review point: the player
+  // is still assessed on de-escalation, they simply cannot pass it.
+  const deescAssessAt = firstAbxOrderedAt === null ? Infinity
+    : (isFinite(pivot) ? pivot : firstAbxOrderedAt + CULTURE_TURNAROUND_HOURS);
+
+  // AIM required for any Red drug, and any Orange drug run longer than 48h.
+  const aimReqDrugs = drugHistory.filter(e => aimRequiredFor(e, caseHour));
+  const aimNA = anyDrugs && aimReqDrugs.length === 0;
+
+  // Timing measured from "now" when the thing has not happened yet, so the
+  // live bar decays as the player delays rather than jumping at the end.
+  const doorDelay  = (firstCoveredAt      !== null ? firstCoveredAt      : caseHour);
+  const deescDelay = (appropriateStepDownAt !== null ? appropriateStepDownAt : caseHour) - pivot;
+  const switchDelay = firstOralReadyAt === null ? Infinity
+    : (firstOralSwitchAt !== null ? firstOralSwitchAt : caseHour) - firstOralReadyAt;
+
+  // Total days of antimicrobial therapy vs the guideline course.
+  const courseDays = S.therapyHours / 24;
+  const lo = ADEQUATE_COURSE_DAYS - COURSE_GRACE_DAYS;   // 6
+  const hi = ADEQUATE_COURSE_DAYS + COURSE_GRACE_DAYS;   // 8
+  const courseFrac = courseDays < lo ? clamp01(1 - (lo - courseDays) / COURSE_ZERO_DAYS)
+                   : courseDays > hi ? clamp01(1 - (courseDays - hi) / COURSE_ZERO_DAYS)
+                   : 1;
+
+  return [
+    // ── START ────────────────────────────────────────────────────────────
+    { key:'cult', phase:'Start', short:'cultures', label:'Cultures before antibiotics', pts:10,
+      available: firstAbxOrderedAt !== null || urineCultureOrderedAt !== null,
+      pass: urineCultureOrderedAt !== null &&
+            (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt) },
+
+    { key:'door', phase:'Start', short:'promptness', label:'Prompt effective therapy', pts:10,
+      available: firstCoveredAt !== null || caseHour >= DOOR_FULL_H,
+      frac: slide(doorDelay, DOOR_FULL_H, DOOR_ZERO_H),
+      pass: firstCoveredAt !== null && firstCoveredAt <= DOOR_FULL_H },
+
+    { key:'emp',  phase:'Start', short:'empiric', label:'Guideline-concordant empiric choice', pts:15,
+      available: firstAbxOrderedAt !== null,
+      pass: firstAppropriateEmpiricAt !== null },
+
+    // ── REVIEW ───────────────────────────────────────────────────────────
+    { key:'dir',  phase:'Review', short:'de-escalation', label:'Prompt de-escalation to directed therapy', pts:20,
+      available: caseHour >= deescAssessAt,
+      // Decays from the moment the result lands, so waiting visibly costs marks.
+      // No culture ever sent => no pivot => unreachable, scores zero.
+      frac: isFinite(pivot) ? slide(deescDelay, DEESC_FULL_H, DEESC_ZERO_H) : 0,
+      pass: isFinite(pivot) && appropriateStepDownAt !== null &&
+            appropriateStepDownAt >= pivot && deescDelay <= DEESC_FULL_H },
+
+    { key:'oral', phase:'Review', short:'IV→oral', label:'IV to oral switch once stable', pts:10,
+      available: firstOralReadyAt !== null,
+      frac: firstOralReadyAt === null ? 0 : slide(switchDelay, SWITCH_FULL_H, SWITCH_ZERO_H),
+      pass: firstOralSwitchAt !== null && switchDelay <= SWITCH_FULL_H },
+
+    // ── STOP ─────────────────────────────────────────────────────────────
+    { key:'dur',  phase:'Stop', short:'duration doc', label:'Duration documented at prescribing', pts:5,
+      available: anyDrugs,
+      frac: anyDrugs ? drugHistory.filter(e => e.stopDate).length / drugHistory.length : 0,
+      pass: anyDrugs && drugHistory.every(e => e.stopDate) },
+
+    { key:'stop', phase:'Stop', short:'course length', label:'Therapy stopped at the guideline duration', pts:15,
+      // Judgeable once therapy has actually ceased (the course is then final),
+      // or once it has already run past the acceptable window. While a course
+      // is still running and short of the window, it is simply not yet due.
+      available: S.therapyHours > 0 && (activeDrugList.length === 0 || courseDays >= lo),
+      frac: courseFrac,
+      pass: courseDays >= lo && courseDays <= hi },
+
+    // ── GOVERNANCE ───────────────────────────────────────────────────────
+    { key:'ind',  phase:'Governance', short:'indication', label:'Indication documented', pts:10,
+      available: anyDrugs,
+      frac: anyDrugs ? drugHistory.filter(e => e.indication).length / drugHistory.length : 0,
+      pass: anyDrugs && drugHistory.every(e => e.indication) },
+
+    { key:'aim',  phase:'Governance', short:'AIM', label:'AIM obtained when required', pts:5,
+      available: anyDrugs, na: aimNA,
+      pass: aimNA || (aimReqDrugs.length > 0 &&
+            aimReqDrugs.every(e => e.aimNumber && !isAimExpired(e.aimNumber))) },
+  ];
 }
+
+// Points earned on one criterion. Items carrying `frac` award partial credit;
+// everything else is all-or-nothing.
+function amsItemPoints(it){
+  const f = (it.frac !== undefined) ? it.frac : (it.pass ? 1 : 0);
+  return it.pts * f;
+}
+
+// Live score: points earned as a proportion of the criteria in play so far.
+// Starts at 100 — nothing judged yet, nothing missed — and dips as items come
+// into play and are failed. A safety breach caps it at 40, as in the grade.
+function amsLiveScore(){
+  let earned = 0, available = 0;
+  amsCriteria().forEach(it => {
+    if(it.available){ available += it.pts; earned += amsItemPoints(it); }
+  });
+  const pct = available === 0 ? 100 : Math.round(earned / available * 100);
+  return S.breaches.size > 0 ? Math.min(pct, BREACH_SCORE_CAP) : pct;
+}
+
+// Final grade: all six criteria out of a flat 100.
+function amsFinalScore(){
+  const subtotal = Math.round(amsCriteria().reduce((s, it) => s + amsItemPoints(it), 0));
+  return S.breaches.size > 0 ? Math.min(subtotal, BREACH_SCORE_CAP) : subtotal;
+}
+
+// Is any criterion that is already in play short of full marks? Drives whether
+// the AMS caption is styled as an action rather than a status line.
+function amsHasOutstanding(){
+  if(S.breaches.size > 0) return true;
+  return amsCriteria().some(it => it.available && amsItemPoints(it) < it.pts);
+}
+
+// Short caption naming what is currently outstanding.
+function amsLiveCaption(){
+  if(S.breaches.size > 0) return '⚠ Safety breach — capped at 40';
+  const items = amsCriteria();
+  const inPlay = items.filter(it => it.available);
+  if(!inPlay.length) return 'Nothing assessed yet';
+  const missing = inPlay.filter(it => amsItemPoints(it) < it.pts).map(it => it.short);
+  return missing.length ? 'Missing: ' + missing.join(', ')
+                        : 'All ' + inPlay.length + ' criteria met so far';
+}
+
+
 
 function onAimInput(){
   S.aimNumber = document.getElementById('field-aim').value.trim();
@@ -1171,8 +1690,9 @@ function isAimExpired(aimNum){
 }
 
 function isAminoglycosideIV(drug){
-  return (drug.name.toLowerCase().includes('gentamicin') || drug.name.toLowerCase().includes('tobramycin'))
-    && drug.route.toLowerCase().includes('iv');
+  const n = drug.name.toLowerCase();
+  return (n.includes('gentamicin') || n.includes('tobramycin') || n.includes('amikacin'))
+    && drug.route.toUpperCase() === 'IV';
 }
 
 function isPendingDrugAppropriate(){
@@ -1192,7 +1712,7 @@ function contactAMS(){
       return;
     }
     // First aminoglycoside — approve for 24h from order
-    const aimNum = makeAIM(caseHour + 24);
+    const aimNum = makeAIM(caseHour + AMINOGLYCOSIDE_WINDOW_HOURS);
     S.aimNumber = aimNum;
     document.getElementById('field-aim').value = aimNum;
     feed('📞 <b>AMS Team contacted.</b> AIM Number issued: <b>' + aimNum + '</b>. Approved for 24 hours — reassess after culture results.', 'good');
@@ -1229,7 +1749,9 @@ function renewAIM(i){
   }
   // Renew: aminoglycosides still expire at aminoglycosideFirstUsed+24, others +48h from now
   const isAGRenew = isAminoglycosideIV(entry.drug);
-  const expiryHourRenew = isAGRenew ? ((aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : entry.orderedAt) + 24) : (caseHour + 48);
+  const expiryHourRenew = isAGRenew
+    ? ((aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : entry.orderedAt) + AMINOGLYCOSIDE_WINDOW_HOURS)
+    : (caseHour + AIM_VALIDITY_HOURS);
   const aimNum = makeAIM(expiryHourRenew);
   const oldAim = entry.aimNumber;
   entry.aimNumber = aimNum;
@@ -1259,7 +1781,9 @@ function callAMSforMAR(i){
   }
   // callAMSforMAR: aminoglycosides expire at aminoglycosideFirstUsed+24, others +48h from now
   const isAGMAR = isAminoglycosideIV(entry.drug);
-  const expiryHourMAR = isAGMAR ? ((aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : entry.orderedAt) + 24) : (caseHour + 48);
+  const expiryHourMAR = isAGMAR
+    ? ((aminoglycosideFirstUsed !== null ? aminoglycosideFirstUsed : entry.orderedAt) + AMINOGLYCOSIDE_WINDOW_HOURS)
+    : (caseHour + AIM_VALIDITY_HOURS);
   const aimNum = makeAIM(expiryHourMAR);
   entry.aimNumber = aimNum;
   feed('📞 <b>AMS Team:</b> AIM Number issued for <b>' + entry.drug.name + '</b>: <b>' + aimNum + '</b>.', 'good');
@@ -1342,83 +1866,132 @@ function selectMARDur(i, idx){
 
 
 // state: true=green, false=red, null=grey (inactive)
-function setLight(id, state){
-  const rEl=document.getElementById('sl-'+id+'-r');
-  const gEl=document.getElementById('sl-'+id+'-g');
-  if(state===null){
-    rEl.className='sl-red'; gEl.className='sl-green';             // both dim
-  } else {
-    rEl.className='sl-red'+(state?'':' on');
-    gEl.className='sl-green'+(state?' on':'');
+// ════════════════════════════════════════════
+// PATIENT FIGURE
+// A four-channel read-out of the same state the meters use: pallor from
+// Patient Response, flush and sweat from temperature, alertness from how far
+// the patient has recovered, and an IV line whenever one is running. It shows
+// deterioration before the vital signs do, which is the point of having it.
+// ════════════════════════════════════════════
+const SKIN_WELL  = [0xe8,0xb8,0x94];   // healthy
+const SKIN_UNWELL= [0xb5,0xa4,0x9a];   // ashen
+const SKIN_EAR   = [0xe0,0xa8,0x82];   // a shade darker than the face
+
+function mixHex(a, b, t){
+  t = clamp(t, 0, 1);
+  const ch = i => Math.round(a[i] + (b[i] - a[i]) * t);
+  return 'rgb(' + ch(0) + ',' + ch(1) + ',' + ch(2) + ')';
+}
+
+function renderPatientFigure(){
+  const set = (id, attr, val) => {
+    const el = document.getElementById(id);
+    if(el) el.setAttribute(attr, val);
+  };
+
+  // Pallor tracks the Patient Response bar.
+  const wellness = clamp(S.lifeForce / 100, 0, 1);
+  const skin = mixHex(SKIN_UNWELL, SKIN_WELL, wellness);
+  ['fig-face','fig-neck','fig-hand-l','fig-hand-r'].forEach(id => set(id, 'fill', skin));
+  // Ears sit a shade darker than the face so they read against it.
+  set('fig-ear-l', 'fill', mixHex(SKIN_UNWELL, SKIN_EAR, wellness));
+  set('fig-ear-r', 'fill', mixHex(SKIN_UNWELL, SKIN_EAR, wellness));
+
+  // Flush and sweat track temperature: nothing at 37.0, full at 38.9.
+  const fever = clamp((S.temp - 37.0) / 1.9, 0, 1);
+  set('fig-cheek-l', 'opacity', (fever * 0.75).toFixed(2));
+  set('fig-cheek-r', 'opacity', (fever * 0.75).toFixed(2));
+  set('fig-sweat',   'opacity', clamp((S.temp - 37.8) / 1.0, 0, 1).toFixed(2));
+
+  // Alertness: eyes open as the patient recovers, and the mouth relaxes from
+  // an unwell downturn to a neutral line.
+  const alert = clamp((S.lifeForce - 45) / 30, 0, 1);
+  set('fig-eyes-open',   'opacity', alert.toFixed(2));
+  set('fig-eyes-closed', 'opacity', (1 - alert).toFixed(2));
+  set('fig-mouth', 'd', alert > 0.5 ? 'M92 57 q8 5 16 0' : 'M92 59 q8 -5 16 0');
+
+  // IV line, shown while any parenteral antimicrobial is on the MAR.
+  const onIV = activeDrugList.some(e => e.drug.route.toUpperCase() === 'IV');
+  set('fig-iv', 'opacity', onIV ? '1' : '0');
+
+  // Caption: conscious state, then temperature state.
+  const level = S.lifeForce >= 85 ? 'Alert'
+              : S.lifeForce >= 65 ? 'Rousable'
+              : S.lifeForce >= 40 ? 'Drowsy'
+              : 'Obtunded';
+  const tstate = S.temp >= 38.0 ? 'febrile' : S.temp >= 37.5 ? 'low-grade fever' : 'afebrile';
+  const capEl = document.getElementById('fig-caption');
+  if(capEl){
+    capEl.textContent = level + ' · ' + tstate;
+    capEl.style.color = S.lifeForce >= 65 && S.temp < 37.5 ? '#5cc08a'
+                      : S.lifeForce < 40 ? '#ff8888' : '#f0a830';
   }
 }
-function setLightAim(){
-  const rEl=document.getElementById('sl-aim-r'), gEl=document.getElementById('sl-aim-g');
-  const cdEl=document.getElementById('aim-countdown');
 
-  // Countdown: find earliest Orange drug on MAR; show 48h countdown from its start
-  const orangeEntries = activeDrugList.filter(e=>e.drug.tl==='Orange');
-  if(orangeEntries.length){
-    const earliestOrange = Math.min(...orangeEntries.map(e=>e.orderedAt));
-    const hoursElapsed = caseHour - earliestOrange;
-    const hoursLeft = 48 - hoursElapsed;
-    if(hoursLeft > 0){
-      const h = Math.ceil(hoursLeft);
-      cdEl.textContent = h+'h';
-      cdEl.style.display='inline';
-    } else {
-      cdEl.style.display='none';
-    }
-  } else {
-    cdEl.style.display='none';
-  }
+// Temperature sparkline. Fixed y-scale so the shape means the same thing all
+// case: a flat line low on the box is a settled patient, a line riding the top
+// is a persistent fever. The dashed rule is the 37.5°C afebrile threshold.
+const SPARK_MIN_T = 36.0, SPARK_MAX_T = 39.2;
+function renderTempTrend(){
+  const line = document.getElementById('spark-line');
+  if(!line) return;
+  const y = t => 32 - (clamp(t, SPARK_MIN_T, SPARK_MAX_T) - SPARK_MIN_T)
+                      / (SPARK_MAX_T - SPARK_MIN_T) * 30;
+  document.getElementById('spark-ref').setAttribute('y1', y(TEMP_AFEBRILE));
+  document.getElementById('spark-ref').setAttribute('y2', y(TEMP_AFEBRILE));
 
-  // Activate light only for: Red drugs, Orange drugs >48h, or Orange drugs with AIM documented
-  const activeEntries = activeDrugList.filter(e=>
-    e.drug.tl==='Red' ||
-    (e.drug.tl==='Orange' && (caseHour-e.orderedAt)>48) ||
-    (e.drug.tl==='Orange' && e.aimNumber)
-  );
-  if(!activeEntries.length){
-    rEl.className='sl-red'; gEl.className='sl-green'; return;     // grey — Orange <48h, no AIM yet
-  }
-  // Green if all active entries have AIM, red if any are missing
-  const allHaveAim = activeEntries.every(e=>e.aimNumber && !isAimExpired(e.aimNumber));
-  if(allHaveAim){
-    rEl.className='sl-red'; gEl.className='sl-green on';          // green
+  const hist = S.tempHistory;
+  const pts = hist.map(p => (p.h / CASE_LENGTH_HOURS * 100).toFixed(1)+','+y(p.t).toFixed(1));
+  line.setAttribute('points', pts.join(' '));
+
+  const col = S.temp >= 38.0 ? '#ff5448' : S.temp >= TEMP_AFEBRILE ? '#f0a830' : '#2ec26a';
+  line.setAttribute('stroke', col);
+  const dot = document.getElementById('spark-dot');
+  if(hist.length){
+    const last = hist[hist.length-1];
+    const dx = (last.h / CASE_LENGTH_HOURS * 100).toFixed(1);
+    const dy = y(last.t).toFixed(1);
+    dot.setAttribute('x1', dx); dot.setAttribute('x2', dx);
+    dot.setAttribute('y1', dy); dot.setAttribute('y2', dy);
+    dot.setAttribute('stroke', col);
+    dot.setAttribute('opacity', '1');
   } else {
-    rEl.className='sl-red on'; gEl.className='sl-green';          // red
+    dot.setAttribute('opacity', '0');
+  }
+}
+
+// Band colours for a 0-100 meter: good / caution / poor.
+const METER_GOOD = '#2ec26a', METER_WARN = '#f0a830', METER_BAD = '#e2483c';
+function meterColour(pct){
+  return pct >= 70 ? METER_GOOD : pct >= 40 ? METER_WARN : METER_BAD;
+}
+
+// Paint one meter. The fill is a solid band colour, the value sits beside the
+// label rather than on top of the fill, and the caption takes the same colour
+// so the thing that needs attention is the thing that is coloured.
+// `outstanding` marks a caption that names something the player still has to
+// do. It is coloured whatever the score: at 97% the band colour is green, so
+// keying the caption off the score alone left the one actionable line on the
+// screen in grey — the score was fine, but the caption was not.
+function setMeter(id, pct, caption, outstanding){
+  const col = meterColour(pct);
+  const fill = document.getElementById(id+'-fill');
+  fill.style.width = pct + '%';
+  fill.style.backgroundColor = col;
+  const val = document.getElementById(id+'-pct');
+  val.textContent = pct + '%';
+  val.style.color = col;
+  if(caption !== undefined){
+    const sub = document.getElementById(id+'-sub');
+    sub.textContent = caption;
+    sub.style.color = outstanding ? (pct < 70 ? col : METER_WARN) : '#6b8496';
+    sub.style.fontWeight = outstanding ? '700' : '400';
   }
 }
 
 // ════════════════════════════════════════════
 // RENDER
 // ════════════════════════════════════════════
-function updateSpeedo(sc){
-  sc = Math.max(0, Math.min(100, sc));
-  const cx=100, cy=100, r=80, nl=65;
-  const angle = (1 - sc/100) * Math.PI;
-  const ex = cx + r*Math.cos(angle), ey = cy - r*Math.sin(angle);
-  const nx = cx + nl*Math.cos(angle), ny = cy - nl*Math.sin(angle);
-  // Needle
-  document.getElementById('speedo-needle').setAttribute('x2', nx.toFixed(1));
-  document.getElementById('speedo-needle').setAttribute('y2', ny.toFixed(1));
-  // Arc
-  const arcEl = document.getElementById('speedo-arc');
-  if(sc <= 0){
-    arcEl.setAttribute('d','');
-  } else if(sc >= 100){
-    arcEl.setAttribute('d',`M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${cx+r} ${cy}`);
-  } else {
-    arcEl.setAttribute('d',`M ${cx-r} ${cy} A ${r} ${r} 0 0 1 ${ex.toFixed(1)} ${ey.toFixed(1)}`);
-  }
-  const col = sc>=70?'#2ec26a':sc>=40?'#f0a830':'#ff5448';
-  arcEl.setAttribute('stroke', col);
-  document.getElementById('speedo-needle').setAttribute('stroke', col);
-  const valEl = document.getElementById('speedo-val');
-  valEl.textContent = sc+'%';
-  valEl.setAttribute('fill', col);
-}
 
 function render(){
   // MAR — skip re-render while user is editing an entry (avoids destroying typed input)
@@ -1428,14 +2001,18 @@ function render(){
       infList.innerHTML='<div class="inf-empty">No active antimicrobials</div>';
     } else {
       infList.innerHTML=activeDrugList.map((e,i)=>`
-        <div class="mar-entry">
+        <div class="mar-entry${(!e.indication || !e.stopDate) ? ' needs-attention' : ''}">
           <div class="mar-drug-row">
             <span class="inf-dot ${e.drug.tl.toLowerCase()}"></span>
             <span class="inf-name">${e.drug.name}</span>
             <span class="inf-route">${e.drug.route}</span>
             <button class="mar-edit-btn" onclick="startMAREdit(${i})">✏️ Edit</button>
           </div>
-          ${e.indication||e.stopDate||e.aimNumber ? `<div class="mar-meta">${e.indication?'<span>Indication:</span> '+e.indication+'<br>':''}${e.stopDate?'<span>Duration:</span> '+e.stopDate+'<br>':''}${e.aimNumber?'<span>AIM#:</span> '+e.aimNumber:''}${e.aimNumber?` <button class="renew-aim-btn" onclick="renewAIM(${i})">🔄 Renew</button>`:''}</div>` : ''}
+          <div class="mar-meta">
+            <span>Indication:</span> ${e.indication || '<span class="mar-missing">⚠ Not documented</span>'}<br>
+            <span>Duration:</span> ${e.stopDate || '<span class="mar-missing">⚠ Not documented</span>'}
+            ${e.aimNumber ? `<br><span>AIM#:</span> ${e.aimNumber} <button class="renew-aim-btn" onclick="renewAIM(${i})">🔄 Renew</button>` : ''}
+          </div>
           ${(e.drug.tl==='Red'||e.drug.tl==='Orange')&&!e.aimNumber ? `<button class="mar-aim-btn" onclick="callAMSforMAR(${i})">📞 Call AMS for AIM#</button>` : ''}
           <button class="disc-btn" onclick="discontinueDrug(${i})">⏹ DISCONTINUE</button>
         </div>`).join('');
@@ -1463,222 +2040,299 @@ function render(){
   spo2El.textContent=Math.round(S.spo2);
   spo2El.style.color=S.spo2<92?'#ff5448':S.spo2<95?'#f0a830':'#2ec26a';
 
-  // Cultures light: activates as soon as urine culture or first abx ordered
-  const cultOk = urineCultureOrderedAt !== null && (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt);
-  if(urineCultureOrderedAt !== null || firstAbxOrderedAt !== null){
-    setLight('cult', cultOk);
-  } else {
-    setLight('cult', null);
-  }
+  renderPatientFigure();
 
-  // Other AMS Dashboard stoplights
-  if(firstAbxOrderedAt === null || activeDrugList.length === 0){
-    // Grey when no antibiotic ever ordered, or MAR is empty (all discontinued)
-    setLight('ind', null); setLight('rev', null); setLight('app', null);
-    setLightAim();
-  } else {
-    const allHaveInd  = activeDrugList.every(e=>e.indication);
-    const allHaveStop = activeDrugList.every(e=>e.stopDate);
-    setLight('ind',  allHaveInd);
-    setLight('rev',  allHaveStop);
-    setLightAim();
-    setLight('app',  getEffectiveness()==='true' && S.breaches.size===0);
-  }
+  const egfrEl=document.getElementById('param-egfr');
+  egfrEl.textContent=Math.round(S.egfr);
+  egfrEl.style.color=S.egfr<30?'#ff5448':S.egfr<60?'#f0a830':'#2ec26a';
 
-  // Stewardship speedometer
-  const sc=stewardship();
-  updateSpeedo(sc);
+  // Mark the scrolling regions so the fade only appears when content overflows.
+  ['test-list-display','active-inf-list'].forEach(id => {
+    const el = document.getElementById(id);
+    if(el) el.classList.toggle('is-scrollable', el.scrollHeight > el.clientHeight + 1);
+  });
 
-  // Life force bar
-  const lf=Math.round(S.lifeForce);
-  document.getElementById('life-fill').style.width=lf+'%';
-  document.getElementById('life-pct').textContent=lf+'%';
+  renderTempTrend();
+
+  const oralEl=document.getElementById('param-oral');
+  oralEl.textContent = S.oralTolerated ? 'TOLERATING' : 'NIL';
+  oralEl.style.color = S.oralTolerated ? '#2ec26a' : '#ff5448';
+
+  // The three meters. Colour comes from the VALUE's band so a glance reads
+  // the number, not just the length of the bar.
+  setMeter('life',  Math.round(S.lifeForce));
+  // The AMS caption is actionable whenever a criterion in play is unmet.
+  setMeter('ams',   amsLiveScore(), amsLiveCaption(), amsHasOutstanding());
+  setMeter('micro', Math.round(microbiomeHealth()),
+    'Today\'s spectrum: '+currentAscPerDay()+' ASC pts · Cumulative DASC: '+(S.dasc||0).toFixed(1),
+    false);
 
 }
 
 // ════════════════════════════════════════════
 // TICK
 // ════════════════════════════════════════════
-function tick(){
-  if(gameOver) return;
-  caseHour+=TICK_HOURS;
-
-  // Appropriate stoplight state (used by multiple blocks below)
-  const appOk = getEffectiveness()==='true' && S.breaches.size===0;
-
-  // Temp trends toward normal when appropriate, worsens when not
-  if(appOk){
-    if(S.temp > 36.5) S.temp = Math.max(36.5, S.temp - 0.04);
+// Vital signs. Temperature and renal function track whether the infection is
+// being treated; the rest hold a normal-ish band until the patient is critical,
+// then deteriorate. Randomness is confined here.
+function advanceVitals(responding, dt){
+  if(responding){
+    S.temp = Math.max(TEMP_NORMAL, S.temp - TEMP_FALL_PER_HOUR*dt);
+    S.egfr = Math.min(EGFR_RECOVERED, S.egfr + EGFR_RISE_PER_HOUR*dt);
   } else {
-    if(S.temp < 38.9) S.temp = Math.min(38.9, S.temp + 0.02);
+    S.temp = Math.min(TEMP_PRESENTING, S.temp + TEMP_RISE_PER_HOUR*dt);
+    S.egfr = Math.max(EGFR_FLOOR, S.egfr - EGFR_FALL_PER_HOUR*dt);
   }
-  // BP, HR, RR, SpO2 — deteriorate rapidly when life force critical (<10%)
+  // One sample per game hour. Spacing by game hour rather than by tick keeps
+  // the trend clinically honest under the weighted clock, where a tick covers
+  // 0.27h early in the case and 1.6h later on.
+  if(caseHour - S.lastTempSample >= 1){
+    S.lastTempSample = Math.floor(caseHour);
+    S.tempHistory.push({h: caseHour, t: S.temp});
+  }
+
   const r = ()=>(Math.random()-0.5);
   const critical = S.lifeForce < 10;
   S.bpSys = Math.round(critical
-    ? Math.min(125, Math.max(50,  S.bpSys - 3 + r()*2))   // rapid drop toward shock
-    : Math.min(125, Math.max(95,  S.bpSys     + r()*2)));
+    ? Math.min(125, Math.max(50,  S.bpSys - CRIT_BP_SYS_PER_HOUR*dt + r()*2))  // toward shock
+    : Math.min(125, Math.max(95,  S.bpSys + r()*2)));
   S.bpDia = Math.round(critical
-    ? Math.min(90,  Math.max(30,  S.bpDia - 2 + r()*1))
-    : Math.min(90,  Math.max(70,  S.bpDia     + r()*1)));
+    ? Math.min(90,  Math.max(30,  S.bpDia - CRIT_BP_DIA_PER_HOUR*dt + r()*1))
+    : Math.min(90,  Math.max(70,  S.bpDia + r()*1)));
   S.hr    = Math.round(critical
-    ? Math.min(140, Math.max(60,  S.hr    + 3 + r()*2))   // rapid rise — compensatory tachycardia
-    : Math.min(100, Math.max(60,  S.hr        + r()*2)));
-  S.rr    = Math.round(Math.min(22,  Math.max(14,  S.rr    + r()*1)));
+    ? Math.min(140, Math.max(60,  S.hr + CRIT_HR_PER_HOUR*dt + r()*2))         // compensatory tachycardia
+    : Math.min(100, Math.max(60,  S.hr + r()*2)));
+  S.rr    = Math.round(Math.min(22, Math.max(14, S.rr + r()*1)));
   S.spo2  = Math.min(100, Math.max(94, S.spo2 + r()*0.5));
+}
 
-  // Update test statuses
-  let testUpdated = false;
+// IV-to-oral readiness (the "O" of COMS). Afebrile time accrues while the
+// temperature is controlled and resets the moment the patient spikes again, so
+// a relapsing patient loses oral suitability rather than keeping it once earned.
+function advanceOralReadiness(dt){
+  if(S.temp < TEMP_AFEBRILE) S.afebrileHours += dt; else S.afebrileHours = 0;
+  const oralNow = S.afebrileHours >= ORAL_AFEBRILE_HOURS && S.lifeForce >= ORAL_MIN_RESPONSE;
+  if(oralNow === S.oralTolerated) return;
+  S.oralTolerated = oralNow;
+  if(oralNow && firstOralReadyAt === null) firstOralReadyAt = caseHour;
+  feed(oralNow
+    ? '🥤 <b>Tolerating oral intake</b> — alert, afebrile for '+ORAL_AFEBRILE_HOURS+'h and improving. Suitable for an <b>IV to oral switch</b>.'
+    : '🚫 <b>Nil by mouth</b> — the patient is no longer well enough to absorb oral antimicrobials reliably.',
+    oralNow ? 'good' : 'bad');
+}
+
+// Pending results that have now come back.
+function advanceTestResults(){
   orderedTestsList.forEach(entry=>{
-    if(entry.status==='pending' && (caseHour - entry.orderedAt) >= entry.hoursToResult){
-      entry.status='available';
-      if(entry.test.name==='Urine culture (MC&S)' && urineCultureAvailableAt===null) urineCultureAvailableAt=caseHour;
-      feed(entry.test.icon+' Result available: <b>'+entry.test.name+'</b>','good');
-      testUpdated=true;
-    }
+    if(entry.status!=='pending' || (caseHour - entry.orderedAt) < entry.hoursToResult) return;
+    entry.status='available';
+    if(entry.test.name===URINE_CULTURE && urineCultureAvailableAt===null) urineCultureAvailableAt=caseHour;
+    feed(entry.test.icon+' Result available: <b>'+entry.test.name+'</b>','good');
   });
   renderTests();
+}
 
-  // Check for newly expired AIM numbers and alert feed
+// One-time teaching prompts, each fired at most once per case.
+function checkPrompts(responding){
+  // Review point reached with no culture ever sent. Empiric therapy is NOT
+  // scored inappropriate here — the player has no result to act on — but the
+  // dead end is called out, because directed-therapy points are now unreachable.
+  if(!noCultureNudged && firstAbxOrderedAt !== null && urineCultureOrderedAt === null
+     && caseHour >= firstAbxOrderedAt + CULTURE_TURNAROUND_HOURS){
+    noCultureNudged = true;
+    feed('🧫 <b>48-hour review point:</b> no urine culture was ever sent, so there is no susceptibility result to de-escalate against. Empiric therapy continues by default — but <b>directed therapy</b> can no longer be scored.','warn');
+  }
+  // The grace window closing with nothing running, so the Patient Response bar
+  // does not simply begin falling with no visible cause.
+  if(!graceWarned && caseHour > LIFE_GRACE_HOURS && !responding && !S.infectionCleared){
+    graceWarned = true;
+    feed('⏳ <b>'+LIFE_GRACE_HOURS+' hours since presentation</b> — no effective antimicrobial is running. In sepsis, antibiotics are overdue; the patient is now deteriorating.','bad');
+  }
+  // AIM numbers that have just expired.
   activeDrugList.forEach(e => {
-    if(e.aimNumber && isAimExpired(e.aimNumber) && !notifiedExpiredAims.has(e.aimNumber)){
-      notifiedExpiredAims.add(e.aimNumber);
-      feed('⏰ <b>AIM Expired:</b> AIM# ' + e.aimNumber + ' for <b>' + e.drug.name + '</b> has expired — renew AIM to maintain compliance.', 'bad');
-    }
+    if(!e.aimNumber || !isAimExpired(e.aimNumber) || notifiedExpiredAims.has(e.aimNumber)) return;
+    notifiedExpiredAims.add(e.aimNumber);
+    feed('⏰ <b>AIM Expired:</b> AIM# ' + e.aimNumber + ' for <b>' + e.drug.name + '</b> has expired — renew AIM to maintain compliance.', 'bad');
   });
+}
 
-  // Life force — driven by Appropriate stoplight
-  // "All done" = appropriate + indication + duration + cultures locked + AIM not needed or documented
-  const _allHaveInd  = activeDrugList.length > 0 && activeDrugList.every(e => e.indication);
-  const _allHaveStop = activeDrugList.length > 0 && activeDrugList.every(e => e.stopDate);
-  const _aimEntries  = activeDrugList.filter(e =>
-    e.drug.tl === 'Red' ||
-    (e.drug.tl === 'Orange' && (caseHour - e.orderedAt) > 48) ||
-    (e.drug.tl === 'Orange' && e.aimNumber)
-  );
-  const _aimApplicable = _aimEntries.length > 0;
-  const _aimOk         = _aimApplicable && _aimEntries.every(e => e.aimNumber && !isAimExpired(e.aimNumber));
-  const _culturesLocked = firstAbxOrderedAt !== null;
-  const _pivot = urineCultureAvailableAt !== null
-    ? urineCultureAvailableAt
-    : (firstAbxOrderedAt !== null ? firstAbxOrderedAt + 24 : Infinity);
-  const _afterPivot = caseHour >= _pivot;
-  const allDone = _afterPivot && appOk && _allHaveInd && _allHaveStop && _culturesLocked && (!_aimApplicable || _aimOk);
-  S.lifeForce += appOk ? (allDone ? 5 : 0.5) : -0.5;
-  S.lifeForce = clamp(S.lifeForce, 0, 100);
+// Patient Response, driven only by organism coverage. Stewardship quality lives
+// on the AMS Score bar and does not change recovery.
+function advancePatientResponse(responding, dt){
+  if(responding) S.courseHours += dt;
+  if(!S.infectionCleared && S.courseHours >= ADEQUATE_COURSE_DAYS * HOURS_PER_DAY){
+    S.infectionCleared = true;
+    feed('✅ <b>Infection cleared</b> — a full '+ADEQUATE_COURSE_DAYS+'-day course of effective therapy is complete. Antibiotics can be stopped; continuing now adds spectrum exposure without clinical benefit.','good');
+  }
+  // Stopping before the course is complete lets the infection relapse. Once
+  // cleared, the patient stays well whether or not therapy continues.
+  let delta;
+  if(responding)                            delta =  LIFE_RISE_PER_HOUR;  // effective therapy
+  else if(S.infectionCleared)               delta =  0;                   // cured, stays well
+  else if(caseHour <= LIFE_GRACE_HOURS)     delta =  0;                   // still being worked up
+  else                                      delta = -LIFE_FALL_PER_HOUR;  // untreated infection
+  S.lifeForce = clamp(S.lifeForce + delta * dt, 0, 100);
+}
 
-  const day=Math.floor(caseHour/24)+1, hr=Math.floor(caseHour%24);
-  document.getElementById('clock').textContent='Day '+day+' · '+String(hr).padStart(2,'0')+'h';
-  const totalDays=Math.floor(caseHour/24);
-  const month=String(Math.floor(totalDays/30)+1).padStart(2,'0');
-  const dayOfMonth=String((totalDays%30)+1).padStart(2,'0');
-  document.getElementById('case-date').textContent=month+'-'+dayOfMonth;
+// Countdown and case clock, both derived from caseHour so they cannot drift.
+function renderClocks(){
+  const secsLeft = Math.max(0, Math.ceil(CASE_LENGTH_SECONDS - secondsAtHour(caseHour)));
+  const tState = secsLeft <= 30 ? 'urgent' : secsLeft <= 60 ? 'warn' : '';
+  const tEl = document.getElementById('timer');
+  tEl.textContent = Math.floor(secsLeft/60) + ':' + String(secsLeft%60).padStart(2,'0');
+  tEl.className = tState;
+  const tFill = document.getElementById('timer-fill');
+  tFill.style.width = (100 * secsLeft / CASE_LENGTH_SECONDS) + '%';
+  tFill.className = tState;
 
+  // Clamp the displayed clock inside the case so the final frame reads Day 10,
+  // not Day 11 (floating-point accumulation puts caseHour a hair over the end).
+  const shownHour = Math.min(caseHour, CASE_LENGTH_HOURS - 0.001);
+  const day = Math.floor(shownHour/HOURS_PER_DAY)+1, hr = Math.floor(shownHour%HOURS_PER_DAY);
+  document.getElementById('clock').textContent = 'Day '+day+' · '+String(hr).padStart(2,'0')+'h';
+  const totalDays = Math.floor(shownHour/HOURS_PER_DAY);
+  document.getElementById('case-date').textContent =
+    String(Math.floor(totalDays/30)+1).padStart(2,'0')+'-'+String((totalDays%30)+1).padStart(2,'0');
+}
 
-  if(S.lifeForce<=0){render();return endGame();}
-  if(S.lifeForce>=100){render();return endGame();}
-  if(caseHour>=240){render();return endGame();}
+// One tick = one real second, advancing tickHours() of game time.
+function tick(){
+  if(gameOver) return;
+  const dt = tickHours(caseHour);
+  caseHour += dt;
+
+  // Is the patient receiving an antibiotic that covers the organism? This —
+  // not stewardship quality — is what the patient responds to.
+  const responding = patientCovered();
+
+  // Timing trackers for the AMS criteria.
+  if(responding && firstCoveredAt === null) firstCoveredAt = caseHour;
+  if(activeDrugList.length > 0) S.therapyHours += dt;
+  if(S.oralTolerated && firstOralSwitchAt === null &&
+     activeDrugList.some(e => isOralRoute(e.drug) && coversOrganism(e.drug))){
+    firstOralSwitchAt = caseHour;
+  }
+
+  advanceVitals(responding, dt);
+  advanceOralReadiness(dt);
+  advanceTestResults();
+  checkPrompts(responding);
+  advancePatientResponse(responding, dt);
+
+  // DASC — cumulative antibiotic spectrum coverage. Each active antibiotic
+  // contributes its ASC score per full day of therapy, accrued per tick.
+  S.dasc += currentAscPerDay() * (dt / HOURS_PER_DAY);
+
+  renderClocks();
+
+  // Death ends the case immediately; otherwise it runs its fixed length.
+  if(S.lifeForce <= 0)                { render(); return endGame(); }
+  if(caseHour >= CASE_LENGTH_HOURS)   { render(); return endGame(); }
   render();
 }
+
 
 // ════════════════════════════════════════════
 // OUTCOME
 
-function endGame(){
-  gameOver=true; clearInterval(gameInt);
+// ── DEBRIEF RENDERING ────────────────────────────────────────────────────
+// One criterion row: a tick, a partial mark, a cross, or N/A.
+function debriefRow(it){
+  const got     = Math.round(amsItemPoints(it));
+  const isNA    = !!it.na;
+  const partial = !isNA && got > 0 && got < it.pts;
+  const icon    = isNA ? '–' : (it.pass ? '✓' : partial ? '◐' : '✗');
+  const iconCol = isNA ? '#9aafbf' : (it.pass ? '#1f9d57' : partial ? '#c47a12' : '#c2362f');
+  const valCol  = it.pass ? '#1f9d57' : partial ? '#c47a12' : '#c2362f';
+  const val     = isNA
+    ? `<span style="color:#9aafbf;font-size:11px;">N/A</span>`
+    : `<span style="color:${valCol};font-family:'Courier New',monospace;font-weight:700;">${got}/${it.pts}</span>`;
+  return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;">
+    <div style="font-size:16px;font-weight:900;color:${iconCol};width:18px;text-align:center;flex-shrink:0;">${icon}</div>
+    <div style="flex:1;font-size:12px;color:#2a3a4a;">${it.label}</div>
+    <div style="text-align:right;">${val}</div>
+  </div>`;
+}
 
-  // ── 1. Cultures before antibiotics (20 pts) ───────────────────────────
-  const cultOk = urineCultureOrderedAt !== null &&
-    (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt);
+// The criteria grouped under their lifecycle phase, each with a subtotal.
+function debriefPhases(items){
+  return AMS_PHASES.map(ph => {
+    const rows = items.filter(it => it.phase === ph);
+    if(!rows.length) return '';
+    const got = Math.round(rows.reduce((s,it)=>s+amsItemPoints(it),0));
+    const max = rows.reduce((s,it)=>s+it.pts,0);
+    return `<div style="display:flex;align-items:baseline;justify-content:space-between;margin:12px 0 6px;border-bottom:1px solid #e8f0f5;padding-bottom:3px;">
+        <span style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#7a90a4;text-transform:uppercase;">${ph}</span>
+        <span style="font-size:10px;color:#9aafbf;font-family:'Courier New',monospace;">${got}/${max}</span>
+      </div>` + rows.map(debriefRow).join('');
+  }).join('');
+}
 
-  // ── 2. Appropriate empiric therapy (20 pts) ───────────────────────────
-  const empiricOk = firstAppropriateEmpiricAt !== null;
-
-  // ── 3. Indication documented (15 pts) ────────────────────────────────
-  const indOk = drugHistory.length > 0 && drugHistory.every(e => e.indication);
-
-  // ── 4. Duration documented (15 pts) ──────────────────────────────────
-  const durOk = drugHistory.length > 0 && drugHistory.every(e => e.stopDate);
-
-  // ── 5. AIM obtained when required (10 pts) ────────────────────────────
-  // Required for any Red drug, and any Orange drug kept longer than 48h
-  // (mirrors the live dashboard). N/A (nothing needed approval) = pass.
-  const aimReqDrugs = drugHistory.filter(e => {
-    if(e.drug.tl==='Red') return true;
-    if(e.drug.tl==='Orange'){
-      const endHr = e.discontinuedAt != null ? e.discontinuedAt : caseHour;
-      return (endHr - e.orderedAt) > 48;
-    }
-    return false;
-  });
-  const aimNA  = drugHistory.length > 0 && aimReqDrugs.length === 0; // N/A only when drugs ordered but none restricted
-  const aimOk  = aimNA || (aimReqDrugs.length > 0 && aimReqDrugs.every(e => e.aimNumber && !isAimExpired(e.aimNumber)));
-
-  // ── 6. Appropriate directed therapy (20 pts) ──────────────────────────
-  // Passes if an appropriate directed agent was ordered after the pivot.
-  // Pivot = culture result time if available, else firstAbxOrderedAt+24.
-  const _deescPivot = urineCultureAvailableAt !== null
-    ? urineCultureAvailableAt
-    : (firstAbxOrderedAt !== null ? firstAbxOrderedAt + 24 : null);
-  const deescOk = _deescPivot !== null && appropriateStepDownAt !== null && appropriateStepDownAt >= _deescPivot;
-
-  // ── Subtotal ──────────────────────────────────────────────────────────
-  const subtotal =
-    (cultOk    ? 20 : 0) +
-    (empiricOk ? 20 : 0) +
-    (indOk     ? 15 : 0) +
-    (durOk     ? 15 : 0) +
-    (aimOk     ? 10 : 0) +
-    (deescOk   ? 20 : 0);
-
-  // ── Safety breach caps total at 40 ───────────────────────────────────
-  const breached = S.breaches.size > 0;
-  const total    = breached ? Math.min(subtotal, 40) : subtotal;
-
-  const scCol = total>=80?'#1f9d57':total>=60?'#c47a12':'#c2362f';
-
-  function rowHTML(label, pts, pass, isNA){
-    const icon    = isNA ? '–' : (pass ? '✓' : '✗');
-    const iconCol = isNA ? '#9aafbf' : (pass ? '#1f9d57' : '#c2362f');
-    const val     = isNA
-      ? `<span style="color:#9aafbf;font-size:11px;">N/A</span>`
-      : `<span style="color:${pass?'#1f9d57':'#c2362f'};font-family:'Courier New',monospace;font-weight:700;">${pass?pts:0}/${pts}</span>`;
-    return `<div style="display:flex;align-items:center;gap:10px;margin-bottom:9px;">
-      <div style="font-size:16px;font-weight:900;color:${iconCol};width:18px;text-align:center;flex-shrink:0;">${icon}</div>
-      <div style="flex:1;font-size:12px;color:#2a3a4a;">${label}</div>
-      <div style="text-align:right;">${val}</div>
+// The two headline results — the grade, and what it cost the microbiome.
+function debriefHeadline(total){
+  const scCol  = total>=80?'#1f9d57':total>=60?'#c47a12':'#c2362f';
+  const mh     = Math.round(microbiomeHealth());
+  const mhCol  = mh>=70?'#1f9d57':mh>=40?'#c47a12':'#c2362f';
+  const mhDesc = mh>=70?'minimal collateral impact'
+               : mh>=40?'moderate collateral impact'
+               : 'severe collateral impact';
+  const died   = S.lifeForce <= 0;
+  const outTxt = died ? 'Patient died'
+    : S.infectionCleared ? 'Patient recovered — full course completed'
+    : 'Patient survived — course incomplete at day 10';
+  const outCol = died ? '#c2362f' : S.infectionCleared ? '#1f9d57' : '#c47a12';
+  const stat = (label, value, col, barPct, barBg, foot) => `
+    <div style="flex:1;text-align:center;">
+      <div style="font-size:10px;color:#7a90a4;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">${label}</div>
+      <div style="font-size:54px;font-weight:900;font-family:'Courier New',monospace;color:${col};line-height:1;">${value}</div>
+      <div style="height:10px;background:#eef3f7;border:1px solid #ccd8e0;border-radius:5px;overflow:hidden;margin:8px 4px 0;">
+        <div style="height:100%;width:${barPct}%;background:${barBg};"></div>
+      </div>
+      <div style="font-size:11px;color:#9aafbf;margin-top:5px;">${foot}</div>
     </div>`;
-  }
+  return `
+    <div style="text-align:center;margin:14px 0 16px;font-size:13px;font-weight:700;color:${outCol};">${outTxt}</div>
+    <div style="display:flex;gap:18px;align-items:flex-start;margin:0 0 6px;">
+      ${stat('AMS Score', total, scCol, total, 'linear-gradient(90deg,#ff4444,#ff8c00,#2ec26a)', 'out of 100')}
+      <div style="width:1px;align-self:stretch;background:#e8eef2;"></div>
+      ${stat('Microbiome Health', mh+'<span style="font-size:24px;">%</span>', mhCol, mh,
+             'linear-gradient(90deg,#8a5a2b,#c9a227,#3fae7a)', 'DASC '+S.dasc.toFixed(1))}
+    </div>
+    <div style="text-align:center;font-size:11px;color:${mhCol};font-weight:600;margin:2px 0 14px;">${mhDesc}</div>`;
+}
+
+function endGame(){
+  gameOver = true;
+  clearInterval(gameInt);
+
+  // The criteria come from the same amsCriteria() the live bar uses, so the
+  // debrief can never disagree with what the player was watching.
+  const items    = amsCriteria();
+  const total    = amsFinalScore();
+  const breached = S.breaches.size > 0;
 
   const breachRow = breached
     ? `<div style="margin-top:10px;padding:8px 10px;background:#fdf0f0;border:1px solid #f0c0c0;border-radius:5px;font-size:12px;color:#c2362f;font-weight:600;">
-        ⚠️ Safety breach — score capped at 40
+        ⚠️ Safety breach — score capped at ${BREACH_SCORE_CAP}
        </div>`
     : '';
 
-  document.getElementById('o-grade').innerHTML=`
-    <div style="text-align:center;margin:20px 0 16px;">
-      <div style="font-size:10px;color:#7a90a4;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px;">AMS Score</div>
-      <div style="font-size:60px;font-weight:900;font-family:'Courier New',monospace;color:${scCol};line-height:1;">${total}</div>
-      <div style="font-size:11px;color:#9aafbf;margin-top:3px;">out of 100</div>
-    </div>
-    <div style="border-top:1px solid #e0eaf0;padding-top:14px;">
-      ${rowHTML('Cultures before antibiotics',    20, cultOk,   false)}
-      ${rowHTML('Appropriate empiric therapy',    20, empiricOk,false)}
-      ${rowHTML('Indication documented',          15, indOk,    false)}
-      ${rowHTML('Duration documented',            15, durOk,    false)}
-      ${rowHTML('AIM obtained when required',     10, aimOk,    aimNA)}
-      ${rowHTML('Appropriate directed therapy',     20, deescOk,  false)}
-      ${breachRow}
-    </div>`;
-  document.getElementById('outcome').className='show';
+  document.getElementById('o-grade').innerHTML =
+    debriefHeadline(total) +
+    `<div style="border-top:1px solid #e0eaf0;padding-top:4px;">${debriefPhases(items)}${breachRow}</div>`;
+  document.getElementById('outcome').className = 'show';
 }
+
 
 // ════════════════════════════════════════════
 // LIFECYCLE
 // ════════════════════════════════════════════
 function resetPanel(){
-  activeDrugList=[]; pendingDrug=null; pendingTest=null; selectedIndication=null; selectedDuration=null; urineCultureAvailableAt=null; urineCultureOrderedAt=null; firstAbxOrderedAt=null; editingMAR=null; aminoglycosideFirstUsed=null; notifiedExpiredAims=new Set(); firstAppropriateEmpiricAt=null; appropriateStepDownAt=null; drugHistory=[];
+  resetCaseState();
+  // Pending selections in the ordering panel (not case state — these are the
+  // half-filled form, cleared whenever the panel is reset).
+  pendingDrug = pendingTest = null;
+  selectedIndication = selectedDuration = null;
   // Drug ordering
   document.getElementById('drug-search').value='';
   document.getElementById('drug-results').innerHTML='';
@@ -1715,6 +2369,10 @@ function startGame(){
   document.getElementById('start').className='';
   document.getElementById('outcome').className='';
   document.getElementById('case-date').textContent='01-01';
+  const _t=document.getElementById('timer');
+  _t.textContent=Math.floor(CASE_LENGTH_SECONDS/60)+':'+String(Math.round(CASE_LENGTH_SECONDS%60)).padStart(2,'0');
+  _t.className='';
+  const _tf=document.getElementById('timer-fill'); _tf.style.width='100%'; _tf.className='';
   resetPanel();
   feed('Patient with fever, dysuria, flank pain and impaired consciousness. Possible sepsis with urinary source.','warn');
   render();
