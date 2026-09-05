@@ -24,7 +24,7 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 .meter-val{font-size:15px;font-weight:700;font-family:'Courier New',monospace;line-height:1;}
 .meter-track{width:100%;height:14px;background:#dfe9f0;border:1px solid #b0c4d4;border-radius:7px;overflow:hidden;}
 .meter-fill{height:100%;border-radius:7px;transition:width .5s,background-color .5s;}
-.meter-sub{font-size:11px;text-align:left;margin-top:3px;letter-spacing:.2px;}
+.meter-sub{font-size:11px;text-align:left;margin-top:3px;letter-spacing:.2px;white-space:pre-line;}
 #life-lbl{color:#c2362f;}
 #ams-lbl{color:#2b7fb8;}
 #micro-lbl{color:#2f7d63;}
@@ -147,7 +147,7 @@ body{background:#e8f0f4;color:#222;font-family:'Segoe UI',Arial,sans-serif;font-
 #test-list-display:not(.is-scrollable),#active-inf-list:not(.is-scrollable){
   -webkit-mask-image:none;mask-image:none;}
 #feed{flex:1;overflow-y:auto;padding:0 10px 10px;}
-.fitem{font-size:13px;color:#3a4a58;line-height:1.5;padding:5px 9px;margin-bottom:5px;border-left:3px solid #9fc1de;background:#fff;border-radius:0 4px 4px 0;}
+.fitem{font-size:15px;color:#3a4a58;line-height:1.5;padding:5px 9px;margin-bottom:5px;border-left:3px solid #9fc1de;background:#fff;border-radius:0 4px 4px 0;}
 .fitem.warn{border-left-color:#e9a020;background:#fff8ec;}
 .fitem.bad{border-left-color:#d8453f;background:#fdeceb;color:#8a2420;}
 .fitem.good{border-left-color:#2ba85f;background:#edfaf1;}
@@ -653,14 +653,10 @@ function secondsAtHour(h){
 
 // Patient Response, % per game hour. Recovery is faster than deterioration:
 // an effectively treated patient turns around sooner than an untreated one
-// declines, which also keeps a mid-case slip recoverable.
+// declines, which also keeps a mid-case slip recoverable. Decline starts from
+// the moment of presentation — untreated sepsis does not wait for a workup.
 const LIFE_RISE_PER_HOUR = 2;
 const LIFE_FALL_PER_HOUR = 1;
-// Opening grace. The patient is being assessed and worked up, so the bar does
-// not FALL for the first few game hours — it would otherwise be draining while
-// the player is still searching for their first drug. Grace suppresses decline
-// only: prompt treatment starts the climb immediately, so acting fast still pays.
-const LIFE_GRACE_HOURS = 6;
 
 // IV-to-oral switch readiness (the "O" of the COMS criteria). This patient
 // presented obtunded and septic, so oral absorption cannot be relied on until
@@ -770,12 +766,12 @@ let activeDrugList,            // drugs currently on the MAR
     firstAbxOrderedAt,         // hour the first antimicrobial was ordered
     firstCoveredAt,            // hour the patient was first actually covered (door-to-antibiotic)
     aminoglycosideFirstUsed,   // hour an IV aminoglycoside was first used
-    firstAppropriateEmpiricAt, // hour of the first appropriate empiric agent
+    firstEmpiricChoiceApt,     // was the very first antimicrobial ordered a guideline-concordant empiric choice? null until ordered
     appropriateStepDownAt,     // hour of the first appropriate directed agent after the pivot
     firstOralReadyAt,          // hour the patient first became able to take oral
     firstOralSwitchAt,         // hour an oral covering agent was first running while tolerated
     noCultureNudged,           // one-time prompt: review point passed with no culture sent
-    graceWarned;               // one-time prompt: opening grace closed with nothing running
+    courseWarnGiven;           // one-time prompt: course clock running behind the case calendar
 
 function resetCaseState(){
   activeDrugList = [];
@@ -784,9 +780,11 @@ function resetCaseState(){
   notifiedExpiredAims = new Set();
   urineCultureOrderedAt = urineCultureAvailableAt = null;
   firstAbxOrderedAt = firstCoveredAt = aminoglycosideFirstUsed = null;
-  firstAppropriateEmpiricAt = appropriateStepDownAt = null;
+  firstEmpiricChoiceApt = null;
+  appropriateStepDownAt = null;
   firstOralReadyAt = firstOralSwitchAt = null;
-  noCultureNudged = graceWarned = false;
+  noCultureNudged = false;
+  courseWarnGiven = false;
 }
 resetCaseState();
 
@@ -865,15 +863,19 @@ function orderDrug(){
     feed('⚠️ <b>Wrong site of action:</b> Nitrofurantoin is reported <b>S</b>, but it only reaches therapeutic concentrations in <i>urine</i> — it does not treat pyelonephritis or urosepsis. It is also contraindicated at this patient\'s <b>eGFR 35 mL/min</b>.','bad');
   }
 
-  if(firstAbxOrderedAt === null) firstAbxOrderedAt = caseHour;
+  // Guideline-concordant empiric choice is judged on the very first
+  // antimicrobial ordered this case, and only that one — a wrong first choice
+  // "corrected" by adding or switching to the right drug afterwards still
+  // does not earn these points.
+  const isFirstAbx = firstAbxOrderedAt === null;
+  if(isFirstAbx) firstAbxOrderedAt = caseHour;
   if(isAminoglycosideIV(d) && aminoglycosideFirstUsed === null) aminoglycosideFirstUsed = caseHour;
 
-  // Track first appropriate empiric and step-down timings
+  // Track first appropriate empiric choice (first order only) and step-down timing
   const _isBeforePivot = caseHour < pivotHour();
-  if(evaluateDrug(d, caseHour) === 'true'){
-    if(_isBeforePivot  && firstAppropriateEmpiricAt === null) firstAppropriateEmpiricAt = caseHour;
-    if(!_isBeforePivot && appropriateStepDownAt     === null) appropriateStepDownAt     = caseHour;
-  }
+  const _appropriate = evaluateDrug(d, caseHour) === 'true';
+  if(isFirstAbx) firstEmpiricChoiceApt = _isBeforePivot && _appropriate;
+  if(_appropriate && !_isBeforePivot && appropriateStepDownAt === null) appropriateStepDownAt = caseHour;
 
   const entry = {drug:d, indication, stopDate, aimNumber, orderedAt:caseHour, discontinuedAt:null};
   activeDrugList.push(entry);
@@ -1526,6 +1528,15 @@ const BREACH_SCORE_CAP = 40;
 const COURSE_GRACE_DAYS = 1;   // within a day either way is full marks
 const COURSE_ZERO_DAYS  = 3;   // this far beyond the window scores nothing
 
+// A late start (a workup delay, an initial non-covering drug, a breach) makes
+// the course-completion clock (S.courseHours, hours of actual covering
+// therapy) run behind the case calendar the player watches on-screen. Warn
+// once, in the calendar day before the course would nominally be done, if
+// that gap is wide enough that stopping now — going by the calendar alone —
+// would leave the course genuinely incomplete.
+const COURSE_WARN_LEAD_HOURS = 24;  // give the heads-up in the final calendar day of the visible course
+const COURSE_WARN_GAP_HOURS  = 4;   // ignore trivial/rounding-sized gaps
+
 const clamp01 = x => clamp(x, 0, 1);
 // 1 while delay <= full, sliding linearly to 0 at zero.
 const slide = (delay, full, zero) => clamp01((zero - delay) / (zero - full));
@@ -1546,10 +1557,29 @@ function amsCriteria(){
 
   // Timing measured from "now" when the thing has not happened yet, so the
   // live bar decays as the player delays rather than jumping at the end.
-  const doorDelay  = (firstCoveredAt      !== null ? firstCoveredAt      : caseHour);
-  const deescDelay = (appropriateStepDownAt !== null ? appropriateStepDownAt : caseHour) - pivot;
-  const switchDelay = firstOralReadyAt === null ? Infinity
-    : (firstOralSwitchAt !== null ? firstOralSwitchAt : caseHour) - firstOralReadyAt;
+  const doorDelay = (firstCoveredAt !== null ? firstCoveredAt : caseHour);
+
+  // De-escalation and the IV-to-oral switch are ACTIONS. An action that has not
+  // been taken is never scored as met — it is "due". While still inside its
+  // full-marks window it is held out of the live score entirely (the player is
+  // not yet late); once the window passes it is scored on the decaying slide.
+  // Without this, an untaken action showed full marks for the whole window and
+  // the bar read "all criteria met" while the culture sat unactioned.
+  // "Due" names only the grace window itself — the stretch where the action
+  // is still achievable at full marks and simply hasn't been taken yet. Once
+  // it tips into overdue, the criterion is already being scored on the
+  // decaying slide, so it belongs in "Missing" like anything else that has
+  // lost points, not "Due now" forever — there is no action left to name.
+  const deescDone    = isFinite(pivot) && appropriateStepDownAt !== null
+                       && appropriateStepDownAt >= pivot;
+  const deescElapsed = caseHour - deescAssessAt;
+  const deescOverdue = isFinite(deescAssessAt) && deescElapsed > DEESC_FULL_H;
+  const deescDue     = !deescDone && isFinite(deescAssessAt) && caseHour >= deescAssessAt && !deescOverdue;
+
+  const switchDone    = firstOralSwitchAt !== null;
+  const switchElapsed = firstOralReadyAt === null ? -Infinity : caseHour - firstOralReadyAt;
+  const switchOverdue = switchElapsed > SWITCH_FULL_H;
+  const switchDue     = !switchDone && firstOralReadyAt !== null && !switchOverdue;
 
   // Total days of antimicrobial therapy vs the guideline course.
   const courseDays = S.therapyHours / 24;
@@ -1561,41 +1591,47 @@ function amsCriteria(){
 
   return [
     // ── START ────────────────────────────────────────────────────────────
-    { key:'cult', phase:'Start', short:'cultures', label:'Cultures before antibiotics', pts:10,
+    { key:'cult', phase:'Start', short:'cultures before antibiotic', label:'Cultures before antibiotics', pts:10,
       available: firstAbxOrderedAt !== null || urineCultureOrderedAt !== null,
       pass: urineCultureOrderedAt !== null &&
             (firstAbxOrderedAt === null || urineCultureOrderedAt <= firstAbxOrderedAt) },
 
+    // Purely a function of time to effective therapy: full marks while the
+    // patient has been covered within DOOR_FULL_H, sliding to zero by
+    // DOOR_ZERO_H. In play from hour zero — no separate "not yet due" gate —
+    // so the live bar reflects the clock running from the moment of
+    // presentation, not from some later threshold.
     { key:'door', phase:'Start', short:'promptness', label:'Prompt effective therapy', pts:10,
-      available: firstCoveredAt !== null || caseHour >= DOOR_FULL_H,
+      available: true,
       frac: slide(doorDelay, DOOR_FULL_H, DOOR_ZERO_H),
       pass: firstCoveredAt !== null && firstCoveredAt <= DOOR_FULL_H },
 
-    { key:'emp',  phase:'Start', short:'empiric', label:'Guideline-concordant empiric choice', pts:15,
+    { key:'emp',  phase:'Start', short:'Guideline-concordant initial empiric choice', label:'Guideline-concordant initial empiric choice', pts:15,
       available: firstAbxOrderedAt !== null,
-      pass: firstAppropriateEmpiricAt !== null },
+      pass: firstEmpiricChoiceApt === true },
 
     // ── REVIEW ───────────────────────────────────────────────────────────
     { key:'dir',  phase:'Review', short:'de-escalation', label:'Prompt de-escalation to directed therapy', pts:20,
-      available: caseHour >= deescAssessAt,
-      // Decays from the moment the result lands, so waiting visibly costs marks.
-      // No culture ever sent => no pivot => unreachable, scores zero.
-      frac: isFinite(pivot) ? slide(deescDelay, DEESC_FULL_H, DEESC_ZERO_H) : 0,
-      pass: isFinite(pivot) && appropriateStepDownAt !== null &&
-            appropriateStepDownAt >= pivot && deescDelay <= DEESC_FULL_H },
+      available: deescDone || deescOverdue,
+      due: deescDue,
+      frac: deescDone ? slide(appropriateStepDownAt - pivot, DEESC_FULL_H, DEESC_ZERO_H)
+          : deescOverdue ? slide(deescElapsed, DEESC_FULL_H, DEESC_ZERO_H) : 0,
+      pass: deescDone && (appropriateStepDownAt - pivot) <= DEESC_FULL_H },
 
     { key:'oral', phase:'Review', short:'IV→oral', label:'IV to oral switch once stable', pts:10,
-      available: firstOralReadyAt !== null,
-      frac: firstOralReadyAt === null ? 0 : slide(switchDelay, SWITCH_FULL_H, SWITCH_ZERO_H),
-      pass: firstOralSwitchAt !== null && switchDelay <= SWITCH_FULL_H },
+      available: switchDone || switchOverdue,
+      due: switchDue,
+      frac: switchDone ? slide(firstOralSwitchAt - firstOralReadyAt, SWITCH_FULL_H, SWITCH_ZERO_H)
+          : switchOverdue ? slide(switchElapsed, SWITCH_FULL_H, SWITCH_ZERO_H) : 0,
+      pass: switchDone && (firstOralSwitchAt - firstOralReadyAt) <= SWITCH_FULL_H },
 
     // ── STOP ─────────────────────────────────────────────────────────────
-    { key:'dur',  phase:'Stop', short:'duration doc', label:'Duration documented at prescribing', pts:5,
+    { key:'dur',  phase:'Stop', short:'duration (current or previously ordered antibiotics)', label:'Duration documented at prescribing', pts:5,
       available: anyDrugs,
       frac: anyDrugs ? drugHistory.filter(e => e.stopDate).length / drugHistory.length : 0,
       pass: anyDrugs && drugHistory.every(e => e.stopDate) },
 
-    { key:'stop', phase:'Stop', short:'course length', label:'Therapy stopped at the guideline duration', pts:15,
+    { key:'stop', phase:'Stop', short:'inappropriate therapy duration', label:'Therapy stopped at the guideline duration', pts:15,
       // Judgeable once therapy has actually ceased (the course is then final),
       // or once it has already run past the acceptable window. While a course
       // is still running and short of the window, it is simply not yet due.
@@ -1604,7 +1640,7 @@ function amsCriteria(){
       pass: courseDays >= lo && courseDays <= hi },
 
     // ── GOVERNANCE ───────────────────────────────────────────────────────
-    { key:'ind',  phase:'Governance', short:'indication', label:'Indication documented', pts:10,
+    { key:'ind',  phase:'Governance', short:'indication (current or previously ordered antibiotics)', label:'Indication documented', pts:10,
       available: anyDrugs,
       frac: anyDrugs ? drugHistory.filter(e => e.indication).length / drugHistory.length : 0,
       pass: anyDrugs && drugHistory.every(e => e.indication) },
@@ -1643,20 +1679,39 @@ function amsFinalScore(){
 
 // Is any criterion that is already in play short of full marks? Drives whether
 // the AMS caption is styled as an action rather than a status line.
+// Scored live and in the final grade like any other criterion, but not named
+// in the AMS caption:
+//  - 'stop' (inappropriate therapy duration) is judged only after the fact
+//    (once therapy has actually stopped, or has run well past the window),
+//    so calling it out reads as nagging about a decision already made.
+//  - 'dir' (de-escalation) and 'oral' (IV to oral switch) can both end up
+//    permanently unresolvable — e.g. no culture was ever sent, or the patient
+//    never reaches oral tolerance — in which case naming them implies an
+//    action the player can still take when there genuinely isn't one.
+const CAPTION_SILENT_KEYS = new Set(['stop', 'dir', 'oral']);
+
 function amsHasOutstanding(){
   if(S.breaches.size > 0) return true;
-  return amsCriteria().some(it => it.available && amsItemPoints(it) < it.pts);
+  return amsCriteria().some(it => !CAPTION_SILENT_KEYS.has(it.key)
+    && (it.due || (it.available && amsItemPoints(it) < it.pts)));
 }
 
 // Short caption naming what is currently outstanding.
 function amsLiveCaption(){
   if(S.breaches.size > 0) return '⚠ Safety breach — capped at 40';
-  const items = amsCriteria();
+  const items = amsCriteria().filter(it => !CAPTION_SILENT_KEYS.has(it.key));
   const inPlay = items.filter(it => it.available);
   if(!inPlay.length) return 'Nothing assessed yet';
-  const missing = inPlay.filter(it => amsItemPoints(it) < it.pts).map(it => it.short);
-  return missing.length ? 'Missing: ' + missing.join(', ')
-                        : 'All ' + inPlay.length + ' criteria met so far';
+  // Due = the trigger has happened and the action has not. Shown first,
+  // because it is the thing the player can act on right now.
+  const capFirst = s => s.charAt(0).toUpperCase() + s.slice(1);
+  const due     = items.filter(it => it.due).map(it => capFirst(it.short));
+  const missing = inPlay.filter(it => !it.due && amsItemPoints(it) < it.pts).map(it => capFirst(it.short));
+  const parts = [];
+  if(due.length)     parts.push('Due now:\n' + due.join('\n'));
+  if(missing.length) parts.push('Missing:\n' + missing.join('\n'));
+  return parts.length ? parts.join('\n')
+                      : 'All criteria met so far';
 }
 
 
@@ -1864,7 +1919,6 @@ function selectMARDur(i, idx){
   box.style.display='none'; box.innerHTML='';
 }
 
-
 // state: true=green, false=red, null=grey (inactive)
 // ════════════════════════════════════════════
 // PATIENT FIGURE
@@ -1995,6 +2049,10 @@ function setMeter(id, pct, caption, outstanding){
 
 function render(){
   // MAR — skip re-render while user is editing an entry (avoids destroying typed input)
+  // Shows only active (not discontinued) drugs. A drug discontinued before its
+  // indication/duration were documented drops off here permanently — the AMS
+  // Score's documentation criteria still read it from drugHistory forever, so
+  // that gap can no longer be closed once the drug is stopped.
   if(editingMAR === null){
     const infList=document.getElementById('active-inf-list');
     if(!activeDrugList.length){
@@ -2142,12 +2200,6 @@ function checkPrompts(responding){
     noCultureNudged = true;
     feed('🧫 <b>48-hour review point:</b> no urine culture was ever sent, so there is no susceptibility result to de-escalate against. Empiric therapy continues by default — but <b>directed therapy</b> can no longer be scored.','warn');
   }
-  // The grace window closing with nothing running, so the Patient Response bar
-  // does not simply begin falling with no visible cause.
-  if(!graceWarned && caseHour > LIFE_GRACE_HOURS && !responding && !S.infectionCleared){
-    graceWarned = true;
-    feed('⏳ <b>'+LIFE_GRACE_HOURS+' hours since presentation</b> — no effective antimicrobial is running. In sepsis, antibiotics are overdue; the patient is now deteriorating.','bad');
-  }
   // AIM numbers that have just expired.
   activeDrugList.forEach(e => {
     if(!e.aimNumber || !isAimExpired(e.aimNumber) || notifiedExpiredAims.has(e.aimNumber)) return;
@@ -2164,13 +2216,18 @@ function advancePatientResponse(responding, dt){
     S.infectionCleared = true;
     feed('✅ <b>Infection cleared</b> — a full '+ADEQUATE_COURSE_DAYS+'-day course of effective therapy is complete. Antibiotics can be stopped; continuing now adds spectrum exposure without clinical benefit.','good');
   }
+  if(!S.infectionCleared && !courseWarnGiven && activeDrugList.length > 0 &&
+     caseHour >= ADEQUATE_COURSE_DAYS*HOURS_PER_DAY - COURSE_WARN_LEAD_HOURS &&
+     (caseHour - S.courseHours) >= COURSE_WARN_GAP_HOURS){
+    courseWarnGiven = true;
+    feed('⏳ <b>Course running behind</b> — an earlier gap in effective coverage means this antibiotic hasn\'t yet delivered a full '+ADEQUATE_COURSE_DAYS+'-day course, even though the case calendar is nearly there. Wait for the ✅ "Infection cleared" message before stopping — stopping by the calendar alone risks relapse.','warn');
+  }
   // Stopping before the course is complete lets the infection relapse. Once
   // cleared, the patient stays well whether or not therapy continues.
   let delta;
-  if(responding)                            delta =  LIFE_RISE_PER_HOUR;  // effective therapy
-  else if(S.infectionCleared)               delta =  0;                   // cured, stays well
-  else if(caseHour <= LIFE_GRACE_HOURS)     delta =  0;                   // still being worked up
-  else                                      delta = -LIFE_FALL_PER_HOUR;  // untreated infection
+  if(responding)                delta =  LIFE_RISE_PER_HOUR;  // effective therapy
+  else if(S.infectionCleared)   delta =  0;                   // cured, stays well
+  else                          delta = -LIFE_FALL_PER_HOUR;  // untreated infection — decays from t=0
   S.lifeForce = clamp(S.lifeForce + delta * dt, 0, 100);
 }
 
@@ -2293,10 +2350,10 @@ function debriefHeadline(total){
   return `
     <div style="text-align:center;margin:14px 0 16px;font-size:13px;font-weight:700;color:${outCol};">${outTxt}</div>
     <div style="display:flex;gap:18px;align-items:flex-start;margin:0 0 6px;">
-      ${stat('AMS Score', total, scCol, total, 'linear-gradient(90deg,#ff4444,#ff8c00,#2ec26a)', 'out of 100')}
+      ${stat('AMS Score', total, scCol, total, scCol, 'out of 100')}
       <div style="width:1px;align-self:stretch;background:#e8eef2;"></div>
       ${stat('Microbiome Health', mh+'<span style="font-size:24px;">%</span>', mhCol, mh,
-             'linear-gradient(90deg,#8a5a2b,#c9a227,#3fae7a)', 'DASC '+S.dasc.toFixed(1))}
+             mhCol, 'DASC '+S.dasc.toFixed(1))}
     </div>
     <div style="text-align:center;font-size:11px;color:${mhCol};font-weight:600;margin:2px 0 14px;">${mhDesc}</div>`;
 }
