@@ -661,9 +661,13 @@ const LIFE_FALL_PER_HOUR = 1;
 // IV-to-oral switch readiness (the "O" of the COMS criteria). This patient
 // presented obtunded and septic, so oral absorption cannot be relied on until
 // they have been afebrile and clinically improving for a sustained period.
-// Standard practice is 24-48h of clinical improvement before switching.
-const ORAL_AFEBRILE_HOURS = 24;   // afebrile for this long, and...
-const ORAL_MIN_RESPONSE   = 70;   // ...Patient Response at least this good
+// Standard practice is 24-48h of clinical improvement before switching, and
+// sustained defervescence is the single criterion every switch protocol names,
+// so readiness is judged on afebrile time alone. A patient cannot accrue this
+// much afebrile time without effective therapy running, so the fever clock
+// already implies clinical improvement — a separate response threshold only
+// restated it.
+const ORAL_AFEBRILE_HOURS = 24;   // afebrile for this long to be oral-suitable
 // Temperature, °C per game hour, settling toward normal / drifting toward fever.
 const TEMP_FALL_PER_HOUR = 0.16;
 const TEMP_RISE_PER_HOUR = 0.08;
@@ -2133,8 +2137,13 @@ function render(){
 // Vital signs. Temperature and renal function track whether the infection is
 // being treated; the rest hold a normal-ish band until the patient is critical,
 // then deteriorate. Randomness is confined here.
+// Vitals follow the infection, not the drug chart. Once the course is complete
+// the patient goes on getting better whether or not therapy continues, exactly
+// as the Patient Response bar does — otherwise stopping on time, which is the
+// correct stewardship action, would look like a relapse: the fever climbing
+// back, renal function sliding, oral tolerance lost.
 function advanceVitals(responding, dt){
-  if(responding){
+  if(responding || S.infectionCleared){
     S.temp = Math.max(TEMP_NORMAL, S.temp - TEMP_FALL_PER_HOUR*dt);
     S.egfr = Math.min(EGFR_RECOVERED, S.egfr + EGFR_RISE_PER_HOUR*dt);
   } else {
@@ -2169,7 +2178,7 @@ function advanceVitals(responding, dt){
 // a relapsing patient loses oral suitability rather than keeping it once earned.
 function advanceOralReadiness(dt){
   if(S.temp < TEMP_AFEBRILE) S.afebrileHours += dt; else S.afebrileHours = 0;
-  const oralNow = S.afebrileHours >= ORAL_AFEBRILE_HOURS && S.lifeForce >= ORAL_MIN_RESPONSE;
+  const oralNow = S.afebrileHours >= ORAL_AFEBRILE_HOURS;
   if(oralNow === S.oralTolerated) return;
   S.oralTolerated = oralNow;
   if(oralNow && firstOralReadyAt === null) firstOralReadyAt = caseHour;
